@@ -31,14 +31,14 @@ export const Header: React.FC<HeaderProps> = ({
 
         <div>
           <h1 className="font-serif text-2xl tracking-wide text-[#F5F2EC] flex items-center gap-2">
-            RIPPLE
+            RIPPLIER
             <span className="text-[10px] font-mono tracking-widest px-1.5 py-0.5 rounded bg-white/[0.08] text-[#C58A55] uppercase">
               0.1
             </span>
           </h1>
 
           <p className="text-xs text-[#AAAAAA] tracking-wider uppercase font-mono">
-            Spontaneous Topic Machine
+            Ideas that keep rippling.
           </p>
         </div>
       </div>
@@ -63,8 +63,8 @@ export const Header: React.FC<HeaderProps> = ({
             onToggleSound();
           }}
           className={`p-2.5 rounded-full border transition-all cursor-pointer ${soundEnabled
-              ? 'bg-[#181818] border-[#C58A55]/40 text-[#C58A55] shadow-glow-gold'
-              : 'bg-[#181818] border-white/[0.08] text-[#666666]'
+            ? 'bg-[#181818] border-[#C58A55]/40 text-[#C58A55] shadow-glow-gold'
+            : 'bg-[#181818] border-white/[0.08] text-[#666666]'
             }`}
           title={soundEnabled ? 'Mute Sound (M)' : 'Unmute Sound (M)'}
           aria-label="Toggle Sound"
