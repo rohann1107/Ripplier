@@ -1,0 +1,64 @@
+@import "tailwindcss";
+@config "../tailwind.config.js";
+
+body {
+  background-color: #090909;
+  color: #F5F2EC;
+  font-family: 'Inter', sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #090909;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(197, 138, 85, 0.4);
+}
+
+/* Metallic lever visual styles */
+.lever-shaft {
+  background: linear-gradient(180deg, #2A2A2A 0%, #151515 50%, #333333 100%);
+  box-shadow: inset 1px 0 2px rgba(255,255,255,0.2), inset -1px 0 2px rgba(0,0,0,0.8), 0 4px 12px rgba(0,0,0,0.5);
+}
+
+.lever-knob {
+  background: radial-gradient(circle at 35% 35%, #E3A369 0%, #C58A55 45%, #7D522B 100%);
+  box-shadow: 0 4px 15px rgba(0,0,0,0.6), inset 0 2px 4px rgba(255,255,255,0.4), inset 0 -3px 6px rgba(0,0,0,0.6);
+}
+
+.lever-knob:active {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.8), inset 0 1px 2px rgba(255,255,255,0.3);
+}
+
+/* Reel cylinder gradient shadow overlays to create physical depth */
+.reel-shadow-top {
+  background: linear-gradient(to bottom, #111111 0%, rgba(17,17,17,0.85) 40%, rgba(17,17,17,0) 100%);
+}
+
+.reel-shadow-bottom {
+  background: linear-gradient(to top, #111111 0%, rgba(17,17,17,0.85) 40%, rgba(17,17,17,0) 100%);
+}
+
+/* Ambient background glow */
+.ambient-glow {
+  background: radial-gradient(circle at 50% 30%, rgba(197, 138, 85, 0.07) 0%, rgba(9, 9, 9, 0) 70%);
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
