@@ -45,7 +45,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
   };
 
   return (
-    <div className="w-full max-w-3xl my-4 p-6 sm:p-8 rounded-3xl bg-[#141414] border border-white/[0.1] shadow-2xl relative overflow-hidden transition-all duration-300">
+    <div className="w-full max-w-3xl my-1 p-5 sm:p-8 rounded-3xl bg-[#141414] border border-white/[0.1] shadow-2xl relative overflow-hidden transition-all duration-300">
       {/* Background Accent Glow */}
       <div className="absolute top-0 right-0 w-64 h-64 bg-[#C58A55]/[0.03] rounded-full blur-3xl pointer-events-none" />
 
@@ -74,7 +74,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
       </div>
 
       {/* Animated Seed/Topic Display with Framer Motion */}
-      <div className="min-h-[100px] flex items-center my-3 overflow-hidden relative">
+      <div className="min-h-[100px] flex items-center my-2 overflow-hidden relative">
         <AnimatePresence mode="wait">
           <motion.h2
             key={topic.id}
