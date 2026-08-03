@@ -18,7 +18,7 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
     { key: 'R', label: 'Reset timer to default duration' },
     { key: 'M', label: 'Toggle mechanical audio mute' },
     { key: 'S', label: 'Open Settings configuration' },
-    { key: 'ESC', label: 'Close open dialog modal' },
+    { key: 'ESC', label: 'Close open dialog modal' }, //
   ];
 
   return (
