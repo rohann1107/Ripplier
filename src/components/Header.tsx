@@ -4,7 +4,6 @@ import {
   Volume2,
   VolumeX,
   HelpCircle,
-  Sparkles,
 } from 'lucide-react';
 import { audioEngine } from '../utils/audioEngine';
 

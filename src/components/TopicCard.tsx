@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Topic } from '../types';
-import { Copy, Check, Lightbulb, ListChecks, RefreshCw, Sparkles } from 'lucide-react';
-import { audioEngine } from '../utils/audioEngine';
+import {
+  Lightbulb,
+  ListChecks,
+  Sparkles
+} from 'lucide-react';
 
 interface TopicCardProps {
   topic: Topic | null;
   isSpinning?: boolean;
-  onSpinAgain?: () => void;
 }
-
 export const TopicCard: React.FC<TopicCardProps> = ({
   topic,
   isSpinning = false,
-  onSpinAgain,
 }) => {
-  const [copied, setCopied] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
 
   if (!topic) {
@@ -28,12 +27,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
     );
   }
 
-  const handleCopy = () => {
-    audioEngine.playClickSound();
-    navigator.clipboard.writeText(`Antigravity Thinking Seed: "${topic.title}" (${topic.category} - ${topic.difficulty})`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+
 
   const getDifficultyColor = (diff: string) => {
     switch (diff) {

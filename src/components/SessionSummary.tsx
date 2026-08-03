@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
-  Clock, FileText, Zap, Target, Calendar,
+  Clock, FileText, Zap, Target,
   Eye, RotateCcw, Copy, Check, MessageSquare
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
@@ -26,17 +26,7 @@ function formatDuration(seconds: number): string {
   return `${mins} min ${secs} sec`;
 }
 
-function formatDateTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
+
 
 export const SessionSummary: React.FC<SessionSummaryProps> = ({
   speakingTime,

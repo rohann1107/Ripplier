@@ -191,7 +191,6 @@ export const App: React.FC = () => {
               <TopicCard
                 topic={selectedTopic}
                 isSpinning={isSpinning}
-                onSpinAgain={handleStartSpin}
               />
             </div>
 
