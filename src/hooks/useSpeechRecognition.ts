@@ -63,7 +63,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
         const recognition = new SpeechRecognitionClass();
         recognition.continuous = true;
         recognition.interimResults = true;
-        recognition.lang = ''; // auto-detect
+        recognition.lang = navigator.language || 'en-US';
         recognition.maxAlternatives = 1;
 
         recognition.onresult = (event: SpeechRecognitionEvent) => {

@@ -7,6 +7,7 @@ import { useMediaRecording } from '../hooks/useMediaRecording';
 import { saveSession, generateSessionId, calculateWPM, countWords } from '../utils/sessionStore';
 import { SessionSummary } from './SessionSummary';
 import { TranscriptView } from './TranscriptView';
+import { isChromeRecommended } from "../utils/browser";
 
 interface TimerPageProps {
   topic: Topic;
@@ -132,6 +133,8 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   const [sessionTranscript, setSessionTranscript] = useState("");
   const [sessionFillerWords, setSessionFillerWords] = useState<FillerWordCount[]>([]);
 
+
+  const [showBrowserWarning, setShowBrowserWarning] = useState(false);
   const [speechStartTime, setSpeechStartTime] = useState<number | null>(null);
   const [totalSpeechDuration, setTotalSpeechDuration] = useState(0);
 
@@ -179,6 +182,39 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     }
   }, [phase]);
 
+  const continueSpeechAnyway = useCallback(async () => {
+    setShowBrowserWarning(false);
+
+    try {
+      mediaRecording.reset();
+      speechRecognition.reset();
+
+      totalPausedMsRef.current = 0;
+      pauseStartedRef.current = null;
+
+      const now = Date.now();
+
+      setSpeechStartTime(now);
+
+      pausedRemainingRef.current = speechSecs;
+      endTimeRef.current = now + speechSecs * 1000;
+      timerStartedRef.current = true;
+
+      speechRecognition.start();
+
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      await mediaRecording.start();
+
+      setTimeLeft(speechSecs);
+      setIsRunning(true);
+
+    } catch (err) {
+      console.error(err);
+    }
+
+  }, [speechSecs, mediaRecording, speechRecognition]);
+
   const handleSelectSpeechDuration = useCallback((secs: number) => {
     audioEngine.playClickSound();
 
@@ -220,38 +256,21 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
   // Start Speech: starts both the countdown timer and the microphone recording/transcription
   const handleStartSpeech = useCallback(async () => {
+
     audioEngine.playClickSound();
 
-    try {
-      // Clean previous session
-      mediaRecording.reset();
-      speechRecognition.reset();
+    const supported = await isChromeRecommended();
 
-      totalPausedMsRef.current = 0;
-      pauseStartedRef.current = null;
-
-      const now = Date.now();
-
-      setSpeechStartTime(now);
-
-      pausedRemainingRef.current = speechSecs;
-      endTimeRef.current = now + speechSecs * 1000;
-      timerStartedRef.current = true;
-
-      await mediaRecording.start();
-
-      // Small delay so mic is initialized before recognition starts
-      await new Promise(resolve => setTimeout(resolve, 150));
-
-      speechRecognition.start();
-
-      setTimeLeft(speechSecs);
-      setIsRunning(true);
-
-    } catch (err) {
-      console.error(err);
+    if (!supported) {
+      setShowBrowserWarning(true);
+      return;
     }
-  }, [speechSecs, mediaRecording, speechRecognition]);
+
+    continueSpeechAnyway();
+
+  }, [continueSpeechAnyway]);
+
+
 
   const toggleTimer = useCallback(async () => {
     audioEngine.playClickSound();
@@ -833,10 +852,50 @@ Here is my speech transcript:
             </div>
           )}
 
-          {!speechRecognition.isSupported && (
-            <p className="text-[10px] font-mono text-[#E0A85D]">
-              Live transcription requires Chrome or Edge browser.
-            </p>
+          {showBrowserWarning && (
+            <div className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-5">
+
+              <div className="w-full max-w-md rounded-3xl bg-[#111111] border border-white/10 p-6">
+
+                <div className="text-5xl text-center mb-4">
+                  🎤
+                </div>
+
+                <h2 className="text-center font-serif text-2xl text-[#F5F2EC]">
+                  Browser Compatibility
+                </h2>
+
+                <p className="mt-4 text-center text-sm leading-7 text-[#AAAAAA]">
+                  Live speech transcription may not work correctly in your current browser.
+                </p>
+
+                <p className="mt-3 text-center text-sm leading-7 text-[#AAAAAA]">
+                  For the best transcription experience, we recommend using
+                  <span className="text-[#F5F2EC] font-semibold"> Google Chrome</span>.
+                </p>
+
+                <div className="mt-8 flex gap-3">
+
+                  <button
+                    onClick={() => setShowBrowserWarning(false)}
+                    className="flex-1 py-3 rounded-2xl border border-white/10 bg-[#181818] text-[#AAAAAA] hover:text-white transition-all"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={continueSpeechAnyway}
+                    className="flex-1 py-3 rounded-2xl bg-[#C58A55] text-[#090909] font-semibold hover:opacity-90 transition-all"
+                  >
+                    Continue anyway
+                  </button>
+
+                </div>
+
+              </div>
+
+            </div>
+
           )}
 
           {mediaRecording.isRecording && !mediaRecording.isPaused && (

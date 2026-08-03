@@ -188,7 +188,7 @@ export const App: React.FC = () => {
             <button
               onClick={handleStartSpin}
               disabled={isSpinning || filteredTopics.length === 0}
-              className={`flex-1 sm:flex-none px-5 py-2 rounded-full text-xs font-mono uppercase tracking-widest font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer min-w-0 ${isSpinning
+              className={`flex-1 sm:flex-none px-6 py-3 rounded-full text-xs font-mono uppercase tracking-widest font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer min-w-0 ${isSpinning
                 ? 'bg-[#111111] border-white/[0.05] text-[#666666] cursor-not-allowed'
                 : 'bg-[#C58A55] border-[#C58A55] text-[#090909] shadow-glow-gold hover:opacity-90'
                 }`}
@@ -203,7 +203,7 @@ export const App: React.FC = () => {
                   audioEngine.playClickSound();
                   setCurrentView('timer');
                 }}
-                className="flex-1 sm:flex-none px-5 py-2 rounded-full bg-[#181818] border border-[#7CC8F3]/50 text-[#7CC8F3] hover:bg-[#7CC8F3] hover:text-[#090909] transition-all text-xs font-mono uppercase tracking-wider font-bold cursor-pointer shadow-glow-cyan flex items-center justify-center gap-2 min-w-0"
+                className="flex-1 sm:flex-none px-6 py-3 rounded-full bg-[#181818] border border-[#7CC8F3]/50 text-[#7CC8F3] hover:bg-[#7CC8F3] hover:text-[#090909] transition-all text-xs font-mono uppercase tracking-wider font-bold cursor-pointer shadow-glow-cyan flex items-center justify-center gap-2 min-w-0"
               >
                 Start Timer
                 <ArrowRight className="w-4 h-4 shrink-0" />
