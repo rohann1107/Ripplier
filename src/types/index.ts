@@ -1,6 +1,7 @@
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Extreme';
 
 export type Category =
+  | 'General'
   | 'Psychology'
   | 'Philosophy'
   | 'Human Behaviour'
@@ -8,7 +9,17 @@ export type Category =
   | 'Productivity'
   | 'Communication'
   | 'Science'
-  | 'AI';
+  | 'Artificial Intelligence'
+  | 'AI'
+  | 'Technology'
+  | 'History'
+  | 'Environment'
+  | 'Education'
+  | 'Business'
+  | 'Health'
+  | 'Relationships'
+  | 'Leadership'
+  | 'Ethics';
 
 export interface Topic {
   id: string;

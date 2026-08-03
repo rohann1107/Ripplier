@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from "react";
-import type { Category, Difficulty } from "../types";
+import type { Category } from "../types";
 import { CATEGORIES } from "../data/topics";
 import { audioEngine } from "../utils/audioEngine";
 import {
@@ -12,23 +12,11 @@ import { motion, AnimatePresence } from "framer-motion";
 interface CategoryFilterProps {
   selectedCategory: string;
   onSelectCategory: (cat: Category | "All") => void;
-  selectedDifficulty: Difficulty | "All";
-  onSelectDifficulty: (diff: Difficulty | "All") => void;
 }
-
-const DIFFICULTIES: (Difficulty | "All")[] = [
-  "All",
-  "Easy",
-  "Medium",
-  "Hard",
-  "Extreme",
-];
 
 export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   selectedCategory,
   onSelectCategory,
-  selectedDifficulty,
-  onSelectDifficulty,
 }) => {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -56,36 +44,6 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
 
   return (
     <div className="w-full max-w-3xl mx-auto px-2  flex flex-col gap-2">
-
-      {/* Difficulty */}
-      <div className="flex items-center justify-center gap-2 sm:gap-1 overflow-x-auto no-scrollbar whitespace-nowrap">
-
-        <span className="text-[9px] sm:text-xs font-mono uppercase tracking-wide text-[#666666] mr-1.5 sm:mr-2">
-          LEVEL:
-        </span>
-
-        {DIFFICULTIES.map((diff) => {
-
-          const active = selectedDifficulty === diff;
-
-          return (
-            <button
-              key={diff}
-              onClick={() => {
-                audioEngine.playClickSound();
-                onSelectDifficulty(diff);
-              }}
-              className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-mono whitespace-nowrap transition-all cursor-pointer border ${active
-                ? "bg-[#C58A55]/15 border-[#C58A55] text-[#C58A55] shadow-glow-gold"
-                : "bg-[#181818] border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] hover:border-white/[0.2]"
-                }`}
-            >
-              {diff}
-            </button>
-          );
-        })}
-
-      </div>
 
       {/* Category Dropdown */}
       <div

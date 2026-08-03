@@ -8,7 +8,7 @@ import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { Footer } from './components/Footer';
 
 import { TOPICS } from './data/topics';
-import type { Topic, Category, Difficulty, UserSettings } from './types';
+import type { Topic, Category, UserSettings } from './types';
 import { audioEngine } from './utils/audioEngine';
 import { Play, ArrowRight } from 'lucide-react';
 
@@ -16,7 +16,6 @@ export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<'machine' | 'timer'>('machine');
 
   const [category, setCategory] = useState<Category | 'All'>('All');
-  const [difficulty, setDifficulty] = useState<Difficulty | 'All'>('All');
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
@@ -42,10 +41,9 @@ export const App: React.FC = () => {
   const filteredTopics = useMemo(() => {
     return TOPICS.filter((t) => {
       const matchCategory = category === 'All' || t.category === category;
-      const matchDifficulty = difficulty === 'All' || t.difficulty === difficulty;
-      return matchCategory && matchDifficulty;
+      return matchCategory;
     });
-  }, [category, difficulty]);
+  }, [category]);
 
   useEffect(() => {
     if (filteredTopics.length > 0 && !selectedTopic) {
@@ -58,27 +56,12 @@ export const App: React.FC = () => {
     setCategory(newCat);
     const pool = TOPICS.filter((t) => {
       const matchCat = newCat === 'All' || t.category === newCat;
-      const matchDiff = difficulty === 'All' || t.difficulty === difficulty;
-      return matchCat && matchDiff;
+      return matchCat;
     });
 
     if (pool.length > 0) {
       const randomFromNiche = pool[Math.floor(Math.random() * pool.length)];
       setSelectedTopic(randomFromNiche);
-    }
-  };
-
-  const handleSelectDifficulty = (newDiff: Difficulty | 'All') => {
-    setDifficulty(newDiff);
-    const pool = TOPICS.filter((t) => {
-      const matchCat = category === 'All' || t.category === category;
-      const matchDiff = newDiff === 'All' || t.difficulty === newDiff;
-      return matchCat && matchDiff;
-    });
-
-    if (pool.length > 0) {
-      const randomFromPool = pool[Math.floor(Math.random() * pool.length)];
-      setSelectedTopic(randomFromPool);
     }
   };
 
@@ -182,8 +165,6 @@ export const App: React.FC = () => {
           <CategoryFilter
             selectedCategory={category}
             onSelectCategory={handleSelectCategory}
-            selectedDifficulty={difficulty}
-            onSelectDifficulty={handleSelectDifficulty}
           />
 
           <div className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 my-4">

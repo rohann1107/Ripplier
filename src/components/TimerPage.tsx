@@ -735,8 +735,8 @@ Here is my speech transcript:
       </div>
 
       {/* Center Topic Header */}
-      <div className="w-full max-w-3xl text-center  px-2">
-        <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-[#F5F2EC] tracking-tight leading-tight break-words">
+      <div className="w-full max-w-3xl text-center  px-2 mt-3">
+        <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-5xl text-[#F5F2EC] tracking-tight leading-tight break-words">
           "{activeTopic.title}"
         </h1>
       </div>
