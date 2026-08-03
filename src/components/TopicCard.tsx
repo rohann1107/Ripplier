@@ -82,7 +82,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             exit={{ opacity: 0, y: isSpinning ? -15 : 15, filter: 'blur(4px)' }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="font-serif text-[#F5F2EC] leading-none tracking-tight break-words w-full text-[3rem] sm:text-[4.2rem] lg:text-[5rem] font-semibold"          >
+            className="font-serif text-[#F5F2EC] leading-none tracking-tight break-words w-full text-[3rem] sm:text-[4.2rem] lg:text-[5rem] font-normal"          >
             {topic.title}
           </motion.h2>
         </AnimatePresence>

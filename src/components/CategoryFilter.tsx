@@ -55,12 +55,12 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   }, []);
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-2 my-3 flex flex-col gap-3">
+    <div className="w-full max-w-3xl mx-auto px-2 my-3 flex flex-col gap-2">
 
       {/* Difficulty */}
-      <div className="flex items-center justify-center gap-1 overflow-x-auto no-scrollbar whitespace-nowrap">
+      <div className="flex items-center justify-center gap-2 sm:gap-1 overflow-x-auto no-scrollbar whitespace-nowrap">
 
-        <span className="text-xs font-mono uppercase text-[#666666] mr-2 ">
+        <span className="text-[9px] sm:text-xs font-mono uppercase tracking-wide text-[#666666] mr-1.5 sm:mr-2">
           LEVEL:
         </span>
 
@@ -75,7 +75,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
                 audioEngine.playClickSound();
                 onSelectDifficulty(diff);
               }}
-              className={`px-2 sm:px-3 py-1 rounded-full text-[11px] sm:text-xs font-mono whitespace-nowrap transition-all cursor-pointer border ${active
+              className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[10px] sm:text-xs font-mono whitespace-nowrap transition-all cursor-pointer border ${active
                 ? "bg-[#C58A55]/15 border-[#C58A55] text-[#C58A55] shadow-glow-gold"
                 : "bg-[#181818] border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] hover:border-white/[0.2]"
                 }`}

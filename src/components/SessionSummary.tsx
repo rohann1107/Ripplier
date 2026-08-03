@@ -73,7 +73,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   const totalFillerCount = fillerWords.reduce((sum, item) => sum + item.count, 0);
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#090909] text-[#F5F2EC] flex flex-col items-center justify-center p-4 sm:p-8 overflow-y-auto">
+    <div className="fixed inset-0 z-50 bg-[#090909] text-[#F5F2EC] mt-5 flex flex-col items-center justify-center p-4 sm:p-8 overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, y: 30, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -81,7 +81,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
         className="w-full max-w-2xl flex flex-col items-center gap-6"
       >
         {/* Title */}
-        <div className="text-center">
+        <div className="text-center pt-35">
           <motion.div
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}

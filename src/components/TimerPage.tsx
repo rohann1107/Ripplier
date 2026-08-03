@@ -855,12 +855,12 @@ Here is my speech transcript:
       )}
 
       {/* Main Action Buttons */}
-      <div className="flex items-center gap-3 sm:gap-4 my-3 flex-wrap justify-center">
+      <div className="flex items-center gap-3 sm:gap-4 my-3">
         {phase === 'research' ? (
           <>
             <button
               onClick={toggleTimer}
-              className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+              className="px-6 sm:px-5 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
             >
               {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
               {isRunning ? 'PAUSE TIMER' : 'START TIMER'}
