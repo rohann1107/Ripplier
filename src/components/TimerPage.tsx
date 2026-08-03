@@ -16,7 +16,97 @@ interface TimerPageProps {
 
 type TimerView = 'timer' | 'summary' | 'transcript';
 
-const FILLER_WORDS = ['um', 'uh', 'like', 'actually'];
+const FILLER_WORDS = [
+  "uh",
+  "um",
+  "er",
+  "erm",
+  "ah",
+  "eh",
+  "hmm",
+  "mm",
+  "mmm",
+
+  "like",
+  "actually",
+  "basically",
+  "literally",
+  "obviously",
+  "seriously",
+  "simply",
+  "technically",
+  "honestly",
+  "frankly",
+  "clearly",
+  "apparently",
+  "probably",
+  "possibly",
+  "maybe",
+  "perhaps",
+  "kind of",
+  "sort of",
+  "more or less",
+  "or something",
+  "and stuff",
+  "and things",
+  "whatever",
+  "you know",
+  "I mean",
+  "well",
+  "so",
+  "right",
+  "okay",
+  "ok",
+  "alright",
+  "anyway",
+  "anyways",
+  "now",
+  "then",
+  "see",
+  "look",
+  "listen",
+
+  "to be honest",
+  "honestly speaking",
+  "at the end of the day",
+  "as I said",
+  "as you know",
+  "believe me",
+  "you see",
+  "if you will",
+  "in a way",
+  "for example",
+  "for instance",
+  "in fact",
+  "I think",
+  "I guess",
+  "I suppose",
+  "I believe",
+  "I would say",
+  "I would like to say",
+  "I feel like",
+  "I don't know",
+  "you know what I mean",
+  "if that makes sense",
+  "let me think",
+  "let me see",
+  "how can I say",
+  "what I mean is",
+  "the thing is",
+  "the point is",
+  "you could say",
+  "to some extent",
+  "more importantly",
+  "generally speaking",
+  "to be fair",
+  "to be precise",
+  "to be specific",
+  "as a matter of fact",
+  "on the other hand",
+  "at least",
+  "in my opinion",
+  "from my perspective"
+];
 
 export const TimerPage: React.FC<TimerPageProps> = ({
   topic,
@@ -24,45 +114,99 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   onClose,
 }) => {
   const [activeTopic] = useState<Topic>(topic);
-
   const [phase, setPhase] = useState<'research' | 'speech'>(initialMode);
   const [timerView, setTimerView] = useState<TimerView>('timer');
 
   const [researchSecs, setResearchSecs] = useState(600);
   const [speechSecs, setSpeechSecs] = useState(120);
 
-  const [timeLeft, setTimeLeft] = useState(initialMode === 'research' ? 600 : 120);
-  const [isRunning, setIsRunning] = useState(true);
+  const [timeLeft, setTimeLeft] = useState(
+    initialMode === "research" ? 600 : 120
+  );
+
+  const [isRunning, setIsRunning] = useState(false);
 
   const speechRecognition = useSpeechRecognition();
   const mediaRecording = useMediaRecording();
 
-  const [sessionTranscript, setSessionTranscript] = useState('');
+  const [sessionTranscript, setSessionTranscript] = useState("");
   const [sessionFillerWords, setSessionFillerWords] = useState<FillerWordCount[]>([]);
+
   const [speechStartTime, setSpeechStartTime] = useState<number | null>(null);
   const [totalSpeechDuration, setTotalSpeechDuration] = useState(0);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleSelectResearchDuration = (secs: number) => {
+  /* ---------------- PROFESSIONAL TIMER ENGINE ---------------- */
+
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const endTimeRef = useRef<number>(0);
+
+  const pausedRemainingRef = useRef<number>(0);
+
+  const timerStartedRef = useRef(false);
+
+  const lastTickRef = useRef(0);
+
+  const pauseStartedRef = useRef<number | null>(null);
+
+  const totalPausedMsRef = useRef(0);
+
+  /* ----------------------------------------------------------- */
+
+  const handleSelectResearchDuration = useCallback((secs: number) => {
     audioEngine.playClickSound();
+
+    // Stop any running timer
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    timerStartedRef.current = false;
+    pausedRemainingRef.current = 0;
+    endTimeRef.current = 0;
+    totalPausedMsRef.current = 0;
+    pauseStartedRef.current = null;
+
     setResearchSecs(secs);
-    if (phase === 'research') {
-      setTimeLeft(secs);
-      setIsRunning(false);
-    }
-  };
 
-  const handleSelectSpeechDuration = (secs: number) => {
-    audioEngine.playClickSound();
-    setSpeechSecs(secs);
-    if (phase === 'speech') {
-      setTimeLeft(secs);
+    if (phase === "research") {
       setIsRunning(false);
+      setTimeLeft(secs);
     }
-  };
+  }, [phase]);
+
+  const handleSelectSpeechDuration = useCallback((secs: number) => {
+    audioEngine.playClickSound();
+
+    // Stop any running timer
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    timerStartedRef.current = false;
+    pausedRemainingRef.current = 0;
+    endTimeRef.current = 0;
+    totalPausedMsRef.current = 0;
+    pauseStartedRef.current = null;
+
+    setSpeechSecs(secs);
+
+    if (phase === "speech") {
+      setIsRunning(false);
+      setTimeLeft(secs);
+
+      mediaRecording.reset();
+      speechRecognition.reset();
+
+      setSpeechStartTime(null);
+      setTotalSpeechDuration(0);
+    }
+  }, [phase, mediaRecording, speechRecognition]);
 
   const handleResearchComplete = useCallback(() => {
     audioEngine.playClickSound();
@@ -70,119 +214,381 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     setPhase('speech');
     setTimeLeft(speechSecs);
 
-    setTimeout(async () => {
-      try {
-        await mediaRecording.start();
-        speechRecognition.start();
-        setSpeechStartTime(Date.now());
-        setIsRunning(true);
-      } catch (e) {
-        console.error('Failed to start recording:', e);
-        setIsRunning(true);
-      }
-    }, 300);
+    mediaRecording.reset();
+    speechRecognition.reset();
   }, [speechSecs, mediaRecording, speechRecognition]);
 
-  const toggleTimer = useCallback(() => {
+  // Start Speech: starts both the countdown timer and the microphone recording/transcription
+  const handleStartSpeech = useCallback(async () => {
     audioEngine.playClickSound();
-    if (isRunning) {
-      setIsRunning(false);
-      if (phase === 'speech') {
-        mediaRecording.pause();
-        speechRecognition.pause();
-      }
-    } else {
-      setIsRunning(true);
-      if (phase === 'speech') {
-        mediaRecording.resume();
-        speechRecognition.resume();
-      }
-    }
-  }, [isRunning, phase, mediaRecording, speechRecognition]);
 
-  const resetTimer = () => {
-    audioEngine.playClickSound();
-    setIsRunning(false);
-    setTimeLeft(phase === 'research' ? researchSecs : speechSecs);
-    if (phase === 'speech') {
+    try {
+      // Clean previous session
       mediaRecording.reset();
       speechRecognition.reset();
+
+      totalPausedMsRef.current = 0;
+      pauseStartedRef.current = null;
+
+      const now = Date.now();
+
+      setSpeechStartTime(now);
+
+      pausedRemainingRef.current = speechSecs;
+      endTimeRef.current = now + speechSecs * 1000;
+      timerStartedRef.current = true;
+
+      await mediaRecording.start();
+
+      // Small delay so mic is initialized before recognition starts
+      await new Promise(resolve => setTimeout(resolve, 150));
+
+      speechRecognition.start();
+
+      setTimeLeft(speechSecs);
+      setIsRunning(true);
+
+    } catch (err) {
+      console.error(err);
+    }
+  }, [speechSecs, mediaRecording, speechRecognition]);
+
+  const toggleTimer = useCallback(async () => {
+    audioEngine.playClickSound();
+
+    if (phase === "research") {
+      setIsRunning(prev => !prev);
+      return;
+    }
+
+    if (!mediaRecording.isRecording) {
+      handleStartSpeech();
+      return;
+    }
+
+    if (isRunning) {
+
+      // ----- PAUSE -----
+
+      pauseStartedRef.current = Date.now();
+
+      pausedRemainingRef.current = timeLeft;
+
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+
+      setIsRunning(false);
+
+      mediaRecording.pause();
+      speechRecognition.pause();
+
+    } else {
+
+      // ----- RESUME -----
+
+      if (pauseStartedRef.current) {
+        totalPausedMsRef.current += Date.now() - pauseStartedRef.current;
+      }
+
+      pauseStartedRef.current = null;
+
+      endTimeRef.current =
+        Date.now() + pausedRemainingRef.current * 1000;
+
+      setIsRunning(true);
+
+      mediaRecording.resume();
+      speechRecognition.resume();
+    }
+
+  }, [
+    phase,
+    isRunning,
+    timeLeft,
+    mediaRecording,
+    speechRecognition,
+    handleStartSpeech,
+  ]);
+
+  const resetTimer = () => {
+
+    audioEngine.playClickSound();
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    timerStartedRef.current = false;
+    pausedRemainingRef.current = 0;
+    endTimeRef.current = 0;
+    totalPausedMsRef.current = 0;
+    pauseStartedRef.current = null;
+
+    setIsRunning(false);
+
+    setTimeLeft(
+      phase === "research"
+        ? researchSecs
+        : speechSecs
+    );
+
+    if (phase === "speech") {
+
+      mediaRecording.reset();
+      speechRecognition.reset();
+
+      setSpeechStartTime(null);
+      setTotalSpeechDuration(0);
     }
   };
+  const handleDoneSpeaking = useCallback(async () => {
 
-  // Done Speaking — end session and compute metrics
-  const handleDoneSpeaking = useCallback(() => {
     audioEngine.playClickSound();
 
     setIsRunning(false);
-    mediaRecording.stop();
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+
+    timerStartedRef.current = false;
+
+    endTimeRef.current = 0;
+
+    pausedRemainingRef.current = 0;
+
+    await mediaRecording.stop();
+
     speechRecognition.stop();
 
-    const duration = speechStartTime ? Math.round((Date.now() - speechStartTime) / 1000) : totalSpeechDuration;
+    const duration = speechStartTime
+      ? Math.max(
+        1,
+        Math.round(
+          (Date.now() -
+            speechStartTime -
+            totalPausedMsRef.current) /
+          1000
+        )
+      )
+      : speechSecs - timeLeft;
+
     setTotalSpeechDuration(duration);
 
-    const transcript = speechRecognition.transcript || '';
+    const transcript = speechRecognition.transcript.trim();
+
     setSessionTranscript(transcript);
 
-    // Heuristically calculate filler words count (um, uh, like, actually)
     const lowerTranscript = transcript.toLowerCase();
-    const fillerCounts: FillerWordCount[] = FILLER_WORDS.map((word) => {
-      const regex = new RegExp(`\\b${word}\\b`, 'g');
+
+    const fillerCounts: FillerWordCount[] = [];
+
+    for (const word of FILLER_WORDS) {
+
+      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+      const regex = new RegExp(`\\b${escaped}\\b`, "gi");
+
       const matches = lowerTranscript.match(regex);
-      return {
-        word,
-        count: matches ? matches.length : 0,
-      };
-    }).filter(fw => fw.count > 0);
+
+      if (matches && matches.length > 0) {
+
+        fillerCounts.push({
+          word,
+          count: matches.length,
+        });
+
+      }
+
+    }
 
     setSessionFillerWords(fillerCounts);
 
     const wordCount = countWords(transcript);
+
     const wpm = calculateWPM(transcript, duration);
 
     saveSession({
+
       id: generateSessionId(),
+
       topic: activeTopic.title,
+
       topicCategory: activeTopic.category,
+
       date: new Date().toISOString(),
+
       duration,
+
       transcript,
+
       wordsPerMinute: wpm,
+
       totalWords: wordCount,
+
       fillerWords: fillerCounts,
+
     });
 
-    setTimerView('summary');
-  }, [mediaRecording, speechRecognition, speechStartTime, totalSpeechDuration, activeTopic]);
+    setTimerView("summary");
 
+  }, [
+    speechSecs,
+    timeLeft,
+    speechStartTime,
+    activeTopic,
+    speechRecognition,
+    mediaRecording,
+  ]);
   useEffect(() => {
-    if (isRunning) {
-      timerRef.current = setInterval(() => {
-        setTimeLeft((prev) => {
-          if (prev <= 1) {
-            clearInterval(timerRef.current!);
-            setIsRunning(false);
-            audioEngine.playTimerEnd();
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
 
-            if (phase === 'research') {
-              handleResearchComplete();
-            } else {
-              handleDoneSpeaking();
-            }
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
-      if (timerRef.current) clearInterval(timerRef.current);
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+
+      mediaRecording.stop();
+      speechRecognition.stop();
+    };
+  }, []);
+
+  // Using a clean effect that correctly handles setInterval ticking down by referencing
+  // the state value directly or decrementing it safely.
+
+  /* ===========================================================
+   RESEARCH TIMER
+=========================================================== */
+  useEffect(() => {
+
+    if (phase !== "research") return;
+
+    if (!isRunning) {
+
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+
+      return;
     }
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isRunning, phase, handleResearchComplete, handleDoneSpeaking]);
+    intervalRef.current = setInterval(() => {
 
+      setTimeLeft(prev => {
+
+        if (prev <= 1) {
+
+          clearInterval(intervalRef.current!);
+          intervalRef.current = null;
+
+          setIsRunning(false);
+
+          audioEngine.playTimerEnd();
+
+          handleResearchComplete();
+
+          return 0;
+        }
+
+        return prev - 1;
+
+      });
+
+    }, 1000);
+
+    return () => {
+
+      if (intervalRef.current) {
+
+        clearInterval(intervalRef.current);
+
+        intervalRef.current = null;
+
+      }
+
+    };
+
+  }, [
+    phase,
+    isRunning,
+    handleResearchComplete,
+  ]);
+  /* ===========================================================
+   SPEECH TIMER
+=========================================================== */
+  useEffect(() => {
+
+    if (phase !== "speech") return;
+
+    if (!isRunning) {
+
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+
+      return;
+    }
+
+    intervalRef.current = setInterval(() => {
+
+      const now = Date.now();
+
+      const remaining = Math.max(
+        0,
+        Math.ceil(
+          (endTimeRef.current - now) / 1000
+        )
+      );
+
+      if (remaining !== lastTickRef.current) {
+
+        lastTickRef.current = remaining;
+
+        setTimeLeft(remaining);
+
+      }
+
+      if (remaining <= 0) {
+
+        clearInterval(intervalRef.current!);
+
+        intervalRef.current = null;
+
+        setIsRunning(false);
+
+        audioEngine.playTimerEnd();
+
+        handleDoneSpeaking();
+
+      }
+
+    }, 100);
+
+    return () => {
+
+      if (intervalRef.current) {
+
+        clearInterval(intervalRef.current);
+
+        intervalRef.current = null;
+
+      }
+
+    };
+
+  }, [
+    phase,
+    isRunning,
+    handleDoneSpeaking,
+  ]);
   useEffect(() => {
     if (!mediaRecording.analyserNode || !canvasRef.current) return;
 
@@ -228,7 +634,8 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
-  const formattedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
+  const formattedTime =
+    `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
   const currentDuration = phase === 'research' ? researchSecs : speechSecs;
   const radius = 160;
@@ -236,7 +643,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   const progressRatio = currentDuration > 0 ? timeLeft / currentDuration : 0;
   const strokeDashoffset = circumference - progressRatio * circumference;
 
-  // Custom prompt copy trigger
   const handleCopyPromptWithTranscript = () => {
     const promptText = `I will provide a transcript of my spoken speech.
 
@@ -267,7 +673,7 @@ Please evaluate ONLY these sections:
 Here is my speech transcript:
 
 "${sessionTranscript}"`;
-    
+
     audioEngine.playClickSound();
     navigator.clipboard.writeText(promptText);
   };
@@ -282,7 +688,6 @@ Here is my speech transcript:
         totalWords={wordCount}
         wpm={wpm}
         topicTitle={activeTopic.title}
-        dateTime={new Date().toISOString()}
         fillerWords={sessionFillerWords}
         onViewTranscript={() => setTimerView('transcript')}
         onPracticeAgain={onClose}
@@ -351,9 +756,8 @@ Here is my speech transcript:
             cx="180"
             cy="180"
             r={radius}
-            className={`transition-all duration-1000 ${
-              phase === 'research' ? 'stroke-[#7CC8F3]' : 'stroke-[#C58A55]'
-            }`}
+            className={`transition-all duration-1000 ${phase === 'research' ? 'stroke-[#7CC8F3]' : 'stroke-[#C58A55]'
+              }`}
             strokeWidth="10"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
@@ -363,7 +767,10 @@ Here is my speech transcript:
         </svg>
 
         <div className="absolute flex flex-col items-center justify-center text-center">
-          <span className="font-serif text-[#7CC8F3] tracking-tighter" style={{ fontSize: 'clamp(3rem, 12vw, 7rem)' }}>
+          <span className="font-serif text-[#AAAAAA] tracking-tighter" style={{
+            fontSize: 'clamp(8rem, 18vw, 9rem)',
+            lineHeight: 1,
+          }}>
             {formattedTime}
           </span>
           <span className="text-xs font-mono uppercase tracking-widest text-[#AAAAAA] mt-1">
@@ -376,42 +783,40 @@ Here is my speech transcript:
       <div className="flex items-center gap-2 bg-[#111111] p-1.5 rounded-full border border-white/[0.08] mb-3 flex-wrap justify-center">
         {phase === 'research'
           ? [
-              { label: '5m', secs: 300 },
-              { label: '10m', secs: 600 },
-              { label: '15m', secs: 900 },
-              { label: '20m', secs: 1200 },
-            ].map((p) => (
-              <button
-                key={p.secs}
-                onClick={() => handleSelectResearchDuration(p.secs)}
-                className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${
-                  researchSecs === p.secs
-                    ? 'bg-[#7CC8F3] text-[#090909] font-bold border-[#7CC8F3]'
-                    : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
+            { label: '5m', secs: 300 },
+            { label: '10m', secs: 600 },
+            { label: '15m', secs: 900 },
+            { label: '20m', secs: 1200 },
+          ].map((p) => (
+            <button
+              key={p.secs}
+              onClick={() => handleSelectResearchDuration(p.secs)}
+              className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${researchSecs === p.secs
+                ? 'bg-[#7CC8F3] text-[#090909] font-bold border-[#7CC8F3]'
+                : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
                 }`}
-              >
-                {p.label}
-              </button>
-            ))
+            >
+              {p.label}
+            </button>
+          ))
           : [
-              { label: '1m', secs: 60 },
-              { label: '2m', secs: 120 },
-              { label: '3m', secs: 180 },
-              { label: '5m', secs: 300 },
-              { label: '10m', secs: 600 },
-            ].map((p) => (
-              <button
-                key={p.secs}
-                onClick={() => handleSelectSpeechDuration(p.secs)}
-                className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${
-                  speechSecs === p.secs
-                    ? 'bg-[#C58A55] text-[#090909] font-bold border-[#C58A55]'
-                    : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
+            { label: '1m', secs: 60 },
+            { label: '2m', secs: 120 },
+            { label: '3m', secs: 180 },
+            { label: '5m', secs: 300 },
+            { label: '10m', secs: 600 },
+          ].map((p) => (
+            <button
+              key={p.secs}
+              onClick={() => handleSelectSpeechDuration(p.secs)}
+              className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${speechSecs === p.secs
+                ? 'bg-[#C58A55] text-[#090909] font-bold border-[#C58A55]'
+                : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
                 }`}
-              >
-                {p.label}
-              </button>
-            ))}
+            >
+              {p.label}
+            </button>
+          ))}
       </div>
 
       {/* Speech Phase: Waveform + Live Transcription */}
@@ -434,10 +839,16 @@ Here is my speech transcript:
             </p>
           )}
 
-          {mediaRecording.isRecording && (
+          {mediaRecording.isRecording && !mediaRecording.isPaused && (
             <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
               <div className="w-2 h-2 rounded-full bg-[#E05D5D] animate-pulse" />
               Recording...
+            </div>
+          )}
+          {mediaRecording.isPaused && (
+            <div className="flex items-center gap-2 text-xs font-mono text-[#E0A85D]">
+              <div className="w-2 h-2 rounded-full bg-[#E0A85D]" />
+              Paused
             </div>
           )}
         </div>
@@ -446,29 +857,50 @@ Here is my speech transcript:
       {/* Main Action Buttons */}
       <div className="flex items-center gap-3 sm:gap-4 my-3 flex-wrap justify-center">
         {phase === 'research' ? (
-          <button
-            onClick={handleResearchComplete}
-            className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-          >
-            Done Researching <ArrowRight className="w-4 h-4" />
-          </button>
-        ) : (
           <>
             <button
               onClick={toggleTimer}
               className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
             >
               {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-              {isRunning ? 'PAUSE' : 'RESUME TIMER'}
+              {isRunning ? 'PAUSE TIMER' : 'START TIMER'}
             </button>
-
             <button
-              onClick={handleDoneSpeaking}
-              className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+              onClick={handleResearchComplete}
+              className="px-6 sm:px-8 py-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#F5F2EC] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
             >
-              <Square className="w-4 h-4 fill-current" />
-              Done Speaking
+              Skip Research <ArrowRight className="w-4 h-4" />
             </button>
+          </>
+        ) : (
+          <>
+            {!mediaRecording.isRecording ? (
+              <button
+                onClick={handleStartSpeech}
+                className="px-6 sm:px-8 py-3 rounded-full bg-[#E05D5D] text-white text-xs font-mono uppercase tracking-wider font-bold shadow-lg hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                START SPEECH
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={toggleTimer}
+                  className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
+                  {isRunning ? 'PAUSE' : 'RESUME TIMER'}
+                </button>
+
+                <button
+                  onClick={handleDoneSpeaking}
+                  className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                  Done Speaking
+                </button>
+              </>
+            )}
           </>
         )}
 

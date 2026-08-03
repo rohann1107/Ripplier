@@ -59,8 +59,8 @@ export const TopicCard: React.FC<TopicCardProps> = ({
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Thinking Seed Badge */}
-          <span className="text-[11px] font-mono tracking-wider uppercase px-3 py-1 rounded-full flex items-center gap-1.5 font-bold bg-[#C58A55]/20 border border-[#C58A55]/50 text-[#C58A55]">
-            <Sparkles className="w-3.5 h-3.5" /> THINKING SEED
+          <span className="px-3 py-1 rounded-full flex items-center justify-center bg-[#C58A55]/20 border border-[#C58A55]/50 text-[#C58A55]">
+            <Sparkles className="w-4 h-4" />
           </span>
 
           <span className="text-xs font-mono tracking-wider uppercase px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[#AAAAAA]">
@@ -76,32 +76,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
           </span>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2">
-          {onSpinAgain && (
-            <button
-              onClick={() => {
-                audioEngine.playClickSound();
-                onSpinAgain();
-              }}
-              disabled={isSpinning}
-              className="px-3 py-1.5 rounded-lg bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#C58A55] hover:border-[#C58A55]/40 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-mono disabled:opacity-50"
-              title="Spin New Seed"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isSpinning ? 'animate-spin' : ''}`} />
-              <span>Spin</span>
-            </button>
-          )}
 
-          <button
-            onClick={handleCopy}
-            className="px-3 py-1.5 rounded-lg bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] hover:border-white/[0.2] transition-all cursor-pointer flex items-center gap-1.5 text-xs font-mono"
-            title="Copy Seed Text"
-          >
-            {copied ? <Check className="w-3.5 h-3.5 text-[#78B26A]" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
-        </div>
       </div>
 
       {/* Animated Seed/Topic Display with Framer Motion */}
@@ -113,8 +88,7 @@ export const TopicCard: React.FC<TopicCardProps> = ({
             animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
             exit={{ opacity: 0, y: isSpinning ? -15 : 15, filter: 'blur(4px)' }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="font-serif text-[#F5F2EC] leading-tight tracking-tight break-words w-full text-3xl sm:text-4xl lg:text-5xl font-semibold"
-          >
+            className="font-serif text-[#F5F2EC] leading-none tracking-tight break-words w-full text-[3rem] sm:text-[4.2rem] lg:text-[5rem] font-semibold"          >
             {topic.title}
           </motion.h2>
         </AnimatePresence>

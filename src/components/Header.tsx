@@ -1,4 +1,5 @@
 import React from 'react';
+import logo from "../assets/logo.png";
 import {
   Volume2,
   VolumeX,
@@ -21,10 +22,13 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="w-full max-w-6xl mx-auto px-4 py-6 flex items-center justify-between border-b border-white/[0.06]">
       {/* Brand */}
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#C58A55] to-[#7D522B] flex items-center justify-center shadow-glow-gold">
-          <Sparkles className="w-4 h-4 text-[#090909]" />
-        </div>
+      {/* Brand */}
+      <div className="flex items-center ">
+        <img
+          src={logo}
+          alt="Ripplier Logo"
+          className="w-17 h-17 object-contain select-none shrink-0"
+        />
 
         <div>
           <h1 className="font-serif text-2xl tracking-wide text-[#F5F2EC] flex items-center gap-2">

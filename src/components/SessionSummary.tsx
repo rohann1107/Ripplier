@@ -12,7 +12,7 @@ interface SessionSummaryProps {
   totalWords: number;
   wpm: number;
   topicTitle: string;
-  dateTime: string; // ISO string
+  // dateTime: string; // ISO string
   fillerWords: FillerWordCount[];
   onViewTranscript: () => void;
   onPracticeAgain: () => void;
@@ -43,7 +43,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   totalWords,
   wpm,
   topicTitle,
-  dateTime,
+  // dateTime,
   fillerWords,
   onViewTranscript,
   onPracticeAgain,
@@ -76,7 +76,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
     { icon: <FileText className="w-5 h-5" />, label: 'Total Words', value: `${totalWords} Words`, color: 'text-[#C58A55]' },
     { icon: <Zap className="w-5 h-5" />, label: 'Speaking Speed', value: `${wpm} WPM`, color: 'text-[#78B26A]' },
     { icon: <Target className="w-5 h-5" />, label: 'Topic Practiced', value: topicTitle.length > 50 ? topicTitle.substring(0, 47) + '...' : topicTitle, color: 'text-[#F5F2EC]' },
-    { icon: <Calendar className="w-5 h-5" />, label: 'Session Completed', value: formatDateTime(dateTime), color: 'text-[#AAAAAA]' },
+    // { icon: <Calendar className="w-5 h-5" />, label: 'Session Completed', value: formatDateTime(dateTime), color: 'text-[#AAAAAA]' },
   ];
 
   // Total count of all filler words
@@ -104,7 +104,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
             Session Complete!
           </h1>
           <p className="text-sm font-mono text-[#AAAAAA] uppercase tracking-wider">
-            Ready to copy prompt & speech to ChatGPT
+            Copy Coach prompt and Paste into ChatGpt for feedback
           </p>
         </div>
 
@@ -151,9 +151,14 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
                   fillerWords.map((fw) => (
                     <span
                       key={fw.word}
-                      className="px-2.5 py-1 rounded-lg bg-[#E05D5D]/10 border border-[#E05D5D]/20 text-[#E05D5D] text-xs font-mono"
+                      className="inline-flex items-center px-3 py-1 rounded-full bg-[#E05D5D]/10 border border-[#E05D5D]/20 text-[#E05D5D] text-xs font-medium"
                     >
-                      "{fw.word}": {fw.count}
+                      {fw.word.trim()}
+                      {fw.count > 1 && (
+                        <span className="ml-1 opacity-70 font-semibold">
+                          ×{fw.count}
+                        </span>
+                      )}
                     </span>
                   ))
                 ) : (

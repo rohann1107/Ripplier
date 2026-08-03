@@ -84,48 +84,52 @@ export const App: React.FC = () => {
 
   // Smooth 2-second spin with tick sound on same pace
   const handleStartSpin = useCallback(() => {
+
     if (isSpinning || filteredTopics.length === 0) return;
 
     setIsSpinning(true);
-    const duration = 2000; // 2 seconds spin
-    const startTime = performance.now();
-    let lastTickStep = -1;
 
-    const targetTopic = filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
-    const totalTicks = 16; // Tick sounds at an even, same pace
+    const target =
+      filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
 
-    const animateSpin = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(1.0, elapsed / duration);
+    let delay = 45;          // VERY FAST START
+    const maxDelay = 260;    // VERY SLOW END
 
-      // Linear progress for steady/same pace ticking, easing out slightly only at the very end
-      const easedProgress = progress < 0.85 
-        ? progress 
-        : 0.85 + (1 - Math.pow(1 - ((progress - 0.85) / 0.15), 2)) * 0.15;
+    const spin = () => {
 
-      const currentTickStep = Math.floor(easedProgress * totalTicks);
+      const random =
+        filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
 
-      if (currentTickStep !== lastTickStep && currentTickStep < totalTicks) {
-        lastTickStep = currentTickStep;
-        audioEngine.playTickSound(0.7); // Steady tick sound volume/pitch
+      setSelectedTopic(random);
 
-        if (progress < 0.85) {
-          const rand = filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
-          setSelectedTopic(rand);
-        }
-      }
+      audioEngine.playTickSound(0.7);
 
-      if (progress < 1.0) {
-        animFrameRef.current = requestAnimationFrame(animateSpin);
+      delay += 10;
+
+      if (delay < maxDelay) {
+
+        setTimeout(spin, delay);
+
       } else {
-        setSelectedTopic(targetTopic);
-        setIsSpinning(false);
-        audioEngine.playLandingSound();
+
+        // Dramatic pause before landing
+        setTimeout(() => {
+
+          setSelectedTopic(target);
+
+          audioEngine.playLandingSound();
+
+          setIsSpinning(false);
+
+        }, 350);
+
       }
+
     };
 
-    animFrameRef.current = requestAnimationFrame(animateSpin);
-  }, [isSpinning, filteredTopics]);
+    spin();
+
+  }, [filteredTopics, isSpinning]);
 
   useEffect(() => {
     return () => {
@@ -174,7 +178,7 @@ export const App: React.FC = () => {
           onOpenShortcuts={() => setIsShortcutsOpen(true)}
         />
 
-        <main className="w-full max-w-5xl mx-auto px-4 py-3 flex flex-col items-center">
+        <main className="w-full max-w-5xl mx-auto mt-5 px-4 py-3 flex flex-col items-center">
           <CategoryFilter
             selectedCategory={category}
             onSelectCategory={handleSelectCategory}
@@ -183,7 +187,7 @@ export const App: React.FC = () => {
           />
 
           <div className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 my-4">
-            <div className="flex-1 w-full min-w-0">
+            <div className="flex-1 w-full min-w-0 ">
               <TopicCard
                 topic={selectedTopic}
                 isSpinning={isSpinning}
@@ -205,8 +209,8 @@ export const App: React.FC = () => {
               onClick={handleStartSpin}
               disabled={isSpinning || filteredTopics.length === 0}
               className={`flex-1 sm:flex-none px-8 py-3.5 rounded-full text-xs font-mono uppercase tracking-widest font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer min-w-0 ${isSpinning
-                  ? 'bg-[#111111] border-white/[0.05] text-[#666666] cursor-not-allowed'
-                  : 'bg-[#C58A55] border-[#C58A55] text-[#090909] shadow-glow-gold hover:opacity-90'
+                ? 'bg-[#111111] border-white/[0.05] text-[#666666] cursor-not-allowed'
+                : 'bg-[#C58A55] border-[#C58A55] text-[#090909] shadow-glow-gold hover:opacity-90'
                 }`}
             >
               <Play className="w-4 h-4 fill-current shrink-0" />
