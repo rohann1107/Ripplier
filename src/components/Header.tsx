@@ -19,7 +19,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenShortcuts,
 }) => {
   return (
-    <header className="w-full max-w-6xl mx-auto px-4 py-6 flex items-center justify-between border-b border-white/[0.06]">
+    <header className="w-full max-w-6xl mx-auto px-4 py-4 flex items-center justify-between border-b border-white/[0.06]">
       {/* Brand */}
       {/* Brand */}
       <div className="flex items-center ">

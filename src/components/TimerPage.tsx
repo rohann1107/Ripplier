@@ -735,14 +735,14 @@ Here is my speech transcript:
       </div>
 
       {/* Center Topic Header */}
-      <div className="w-full max-w-3xl text-center my-4 px-2">
+      <div className="w-full max-w-3xl text-center  px-2">
         <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-[#F5F2EC] tracking-tight leading-tight break-words">
           "{activeTopic.title}"
         </h1>
       </div>
 
       {/* Giant Clock Radial Timer Display */}
-      <div className="relative flex items-center justify-center my-2" style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)' }}>
+      <div className="relative flex items-center justify-center mt-4" style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)' }}>
         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 360 360">
           <circle
             cx="180"

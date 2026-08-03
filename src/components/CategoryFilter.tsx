@@ -55,7 +55,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
   }, []);
 
   return (
-    <div className="w-full max-w-3xl mx-auto px-2 my-3 flex flex-col gap-2">
+    <div className="w-full max-w-3xl mx-auto px-2  flex flex-col gap-2">
 
       {/* Difficulty */}
       <div className="flex items-center justify-center gap-2 sm:gap-1 overflow-x-auto no-scrollbar whitespace-nowrap">

@@ -203,7 +203,7 @@ export const App: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 sm:gap-3 my-3 flex-wrap w-full max-w-3xl">
+          <div className="flex items-center justify-center gap-3 sm:gap-3 my-1 flex-wrap w-full max-w-3xl">
             <button
               onClick={handleStartSpin}
               disabled={isSpinning || filteredTopics.length === 0}
