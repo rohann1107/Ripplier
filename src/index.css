@@ -62,3 +62,54 @@ body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Fade In animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Mobile responsive improvements */
+@media (max-width: 767px) {
+  /* Better touch targets */
+  button {
+    min-height: 44px;
+  }
+
+  /* Tighter vertical spacing on mobile */
+  main {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  /* Full-width buttons on mobile */
+  .mobile-full-width {
+    width: 100%;
+  }
+}
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Touch action for lever */
+.touch-none {
+  touch-action: none;
+}
+
+/* Text selection for transcripts */
+.select-text {
+  user-select: text;
+  -webkit-user-select: text;
+}

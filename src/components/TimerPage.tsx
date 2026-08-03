@@ -1,7 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, ArrowRight, X, Mic, Square, Download, Trash2 } from 'lucide-react';
-import type { Topic } from '../types';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Play, Pause, RotateCcw, ArrowRight, X, Square } from 'lucide-react';
+import type { Topic, FillerWordCount } from '../types';
 import { audioEngine } from '../utils/audioEngine';
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { useMediaRecording } from '../hooks/useMediaRecording';
+import { saveSession, generateSessionId, calculateWPM, countWords } from '../utils/sessionStore';
+import { SessionSummary } from './SessionSummary';
+import { TranscriptView } from './TranscriptView';
 
 interface TimerPageProps {
   topic: Topic;
@@ -9,37 +14,38 @@ interface TimerPageProps {
   onClose: () => void;
 }
 
+type TimerView = 'timer' | 'summary' | 'transcript';
+
+const FILLER_WORDS = ['um', 'uh', 'like', 'actually'];
+
 export const TimerPage: React.FC<TimerPageProps> = ({
   topic,
   initialMode = 'research',
   onClose,
 }) => {
-  // Lock topic on mount so it never changes during timer ticks
   const [activeTopic] = useState<Topic>(topic);
 
   const [phase, setPhase] = useState<'research' | 'speech'>(initialMode);
-  
-  // Research duration default 10 min (600s), Speech default 2 min (120s)
+  const [timerView, setTimerView] = useState<TimerView>('timer');
+
   const [researchSecs, setResearchSecs] = useState(600);
   const [speechSecs, setSpeechSecs] = useState(120);
-  
+
   const [timeLeft, setTimeLeft] = useState(initialMode === 'research' ? 600 : 120);
   const [isRunning, setIsRunning] = useState(true);
 
-  // Audio Recording states
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedUrl, setRecordedUrl] = useState<string | null>(null);
-  const [isPlayingRecord, setIsPlayingRecord] = useState(false);
+  const speechRecognition = useSpeechRecognition();
+  const mediaRecording = useMediaRecording();
 
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const audioElementRef = useRef<HTMLAudioElement | null>(null);
+  const [sessionTranscript, setSessionTranscript] = useState('');
+  const [sessionFillerWords, setSessionFillerWords] = useState<FillerWordCount[]>([]);
+  const [speechStartTime, setSpeechStartTime] = useState<number | null>(null);
+  const [totalSpeechDuration, setTotalSpeechDuration] = useState(0);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animFrameRef = useRef<number | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Sync time left when phase or selected preset duration changes
   const handleSelectResearchDuration = (secs: number) => {
     audioEngine.playClickSound();
     setResearchSecs(secs);
@@ -58,14 +64,97 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     }
   };
 
-  const switchPhase = (newPhase: 'research' | 'speech') => {
+  const handleResearchComplete = useCallback(() => {
     audioEngine.playClickSound();
     setIsRunning(false);
-    setPhase(newPhase);
-    setTimeLeft(newPhase === 'research' ? researchSecs : speechSecs);
+    setPhase('speech');
+    setTimeLeft(speechSecs);
+
+    setTimeout(async () => {
+      try {
+        await mediaRecording.start();
+        speechRecognition.start();
+        setSpeechStartTime(Date.now());
+        setIsRunning(true);
+      } catch (e) {
+        console.error('Failed to start recording:', e);
+        setIsRunning(true);
+      }
+    }, 300);
+  }, [speechSecs, mediaRecording, speechRecognition]);
+
+  const toggleTimer = useCallback(() => {
+    audioEngine.playClickSound();
+    if (isRunning) {
+      setIsRunning(false);
+      if (phase === 'speech') {
+        mediaRecording.pause();
+        speechRecognition.pause();
+      }
+    } else {
+      setIsRunning(true);
+      if (phase === 'speech') {
+        mediaRecording.resume();
+        speechRecognition.resume();
+      }
+    }
+  }, [isRunning, phase, mediaRecording, speechRecognition]);
+
+  const resetTimer = () => {
+    audioEngine.playClickSound();
+    setIsRunning(false);
+    setTimeLeft(phase === 'research' ? researchSecs : speechSecs);
+    if (phase === 'speech') {
+      mediaRecording.reset();
+      speechRecognition.reset();
+    }
   };
 
-  // Stable timer interval loop
+  // Done Speaking — end session and compute metrics
+  const handleDoneSpeaking = useCallback(() => {
+    audioEngine.playClickSound();
+
+    setIsRunning(false);
+    mediaRecording.stop();
+    speechRecognition.stop();
+
+    const duration = speechStartTime ? Math.round((Date.now() - speechStartTime) / 1000) : totalSpeechDuration;
+    setTotalSpeechDuration(duration);
+
+    const transcript = speechRecognition.transcript || '';
+    setSessionTranscript(transcript);
+
+    // Heuristically calculate filler words count (um, uh, like, actually)
+    const lowerTranscript = transcript.toLowerCase();
+    const fillerCounts: FillerWordCount[] = FILLER_WORDS.map((word) => {
+      const regex = new RegExp(`\\b${word}\\b`, 'g');
+      const matches = lowerTranscript.match(regex);
+      return {
+        word,
+        count: matches ? matches.length : 0,
+      };
+    }).filter(fw => fw.count > 0);
+
+    setSessionFillerWords(fillerCounts);
+
+    const wordCount = countWords(transcript);
+    const wpm = calculateWPM(transcript, duration);
+
+    saveSession({
+      id: generateSessionId(),
+      topic: activeTopic.title,
+      topicCategory: activeTopic.category,
+      date: new Date().toISOString(),
+      duration,
+      transcript,
+      wordsPerMinute: wpm,
+      totalWords: wordCount,
+      fillerWords: fillerCounts,
+    });
+
+    setTimerView('summary');
+  }, [mediaRecording, speechRecognition, speechStartTime, totalSpeechDuration, activeTopic]);
+
   useEffect(() => {
     if (isRunning) {
       timerRef.current = setInterval(() => {
@@ -76,8 +165,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
             audioEngine.playTimerEnd();
 
             if (phase === 'research') {
-              setPhase('speech');
-              setTimeLeft(speechSecs);
+              handleResearchComplete();
+            } else {
+              handleDoneSpeaking();
             }
             return 0;
           }
@@ -91,31 +181,21 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isRunning, phase, speechSecs]);
+  }, [isRunning, phase, handleResearchComplete, handleDoneSpeaking]);
 
-  const toggleTimer = () => {
-    audioEngine.playClickSound();
-    setIsRunning(!isRunning);
-  };
+  useEffect(() => {
+    if (!mediaRecording.analyserNode || !canvasRef.current) return;
 
-  const resetTimer = () => {
-    audioEngine.playClickSound();
-    setIsRunning(false);
-    setTimeLeft(phase === 'research' ? researchSecs : speechSecs);
-  };
-
-  // Waveform Visualizer
-  const drawWaveform = () => {
-    if (!analyserRef.current || !canvasRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const bufferLength = analyserRef.current.frequencyBinCount;
+    const analyser = mediaRecording.analyserNode;
+    const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
 
     const render = () => {
-      analyserRef.current!.getByteFrequencyData(dataArray);
+      analyser.getByteFrequencyData(dataArray);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const barWidth = (canvas.width / bufferLength) * 2.2;
@@ -134,84 +214,95 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       animFrameRef.current = requestAnimationFrame(render);
     };
     render();
-  };
 
-  const startRecording = async () => {
-    audioEngine.playClickSound();
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      const audioCtx = new AudioCtx();
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 64;
-      source.connect(analyser);
-      analyserRef.current = analyser;
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, [mediaRecording.analyserNode]);
 
-      drawWaveform();
+  useEffect(() => {
+    return () => {
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
 
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        const url = URL.createObjectURL(blob);
-        setRecordedUrl(url);
-        stream.getTracks().forEach((t) => t.stop());
-        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (e) {
-      console.error('Microphone error:', e);
-    }
-  };
-
-  const stopRecording = () => {
-    audioEngine.playClickSound();
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const togglePlayback = () => {
-    audioEngine.playClickSound();
-    if (!audioElementRef.current && recordedUrl) {
-      const audio = new Audio(recordedUrl);
-      audioElementRef.current = audio;
-      audio.onended = () => setIsPlayingRecord(false);
-    }
-    if (audioElementRef.current) {
-      if (isPlayingRecord) {
-        audioElementRef.current.pause();
-        setIsPlayingRecord(false);
-      } else {
-        audioElementRef.current.play();
-        setIsPlayingRecord(true);
-      }
-    }
-  };
-
-  // Format MM:SS
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
   const formattedTime = `${mins}:${secs.toString().padStart(2, '0')}`;
 
   const currentDuration = phase === 'research' ? researchSecs : speechSecs;
-  const radius = 130;
+  const radius = 160;
   const circumference = 2 * Math.PI * radius;
   const progressRatio = currentDuration > 0 ? timeLeft / currentDuration : 0;
   const strokeDashoffset = circumference - progressRatio * circumference;
 
+  // Custom prompt copy trigger
+  const handleCopyPromptWithTranscript = () => {
+    const promptText = `I will provide a transcript of my spoken speech.
+
+Analyze it as a communication coach.
+
+Please evaluate ONLY these sections:
+
+## 1. Grammar
+- Point out all grammar mistakes.
+- Show the original sentence.
+- Show the corrected sentence.
+
+---
+
+## 2. Vocabulary
+- Evaluate the richness and appropriateness of my vocabulary.
+- Suggest better words or phrases where applicable.
+- Mention any repetitive or weak vocabulary.
+
+---
+
+## 3. Improved Version
+- Rewrite my entire speech.
+- Preserve my original meaning and ideas.
+- Only improve grammar, sentence structure, clarity, flow, and vocabulary.
+- Do not add new ideas or remove important points.
+
+Here is my speech transcript:
+
+"${sessionTranscript}"`;
+    
+    audioEngine.playClickSound();
+    navigator.clipboard.writeText(promptText);
+  };
+
+  if (timerView === 'summary') {
+    const wordCount = countWords(sessionTranscript);
+    const wpm = calculateWPM(sessionTranscript, totalSpeechDuration);
+
+    return (
+      <SessionSummary
+        speakingTime={totalSpeechDuration}
+        totalWords={wordCount}
+        wpm={wpm}
+        topicTitle={activeTopic.title}
+        dateTime={new Date().toISOString()}
+        fillerWords={sessionFillerWords}
+        onViewTranscript={() => setTimerView('transcript')}
+        onPracticeAgain={onClose}
+        onCopyTranscript={handleCopyPromptWithTranscript}
+      />
+    );
+  }
+
+  if (timerView === 'transcript') {
+    return (
+      <TranscriptView
+        transcript={sessionTranscript}
+        topicTitle={activeTopic.title}
+        onBack={() => setTimerView('summary')}
+      />
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 bg-[#090909] text-[#F5F2EC] flex flex-col justify-between items-center p-6 sm:p-10 overflow-y-auto animate-fadeIn">
+    <div className="fixed inset-0 z-50 bg-[#090909] text-[#F5F2EC] flex flex-col justify-between items-center p-4 sm:p-6 lg:p-10 overflow-y-auto animate-fadeIn">
       {/* Top Header */}
       <div className="w-full max-w-4xl flex items-center justify-between">
         <div className="flex flex-col">
@@ -226,6 +317,10 @@ export const TimerPage: React.FC<TimerPageProps> = ({
         <button
           onClick={() => {
             audioEngine.playClickSound();
+            if (phase === 'speech') {
+              mediaRecording.stop();
+              speechRecognition.stop();
+            }
             onClose();
           }}
           className="p-2.5 rounded-full bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer transition-all flex items-center gap-2 text-xs font-mono"
@@ -234,32 +329,32 @@ export const TimerPage: React.FC<TimerPageProps> = ({
         </button>
       </div>
 
-      {/* Center Topic Header - Fluid Sizing, break-words so never overflows */}
+      {/* Center Topic Header */}
       <div className="w-full max-w-3xl text-center my-4 px-2">
-        <h1 className="font-serif text-2xl sm:text-3xl lg:text-4xl text-[#F5F2EC] tracking-tight leading-tight break-words">
+        <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-[#F5F2EC] tracking-tight leading-tight break-words">
           "{activeTopic.title}"
         </h1>
       </div>
 
       {/* Giant Clock Radial Timer Display */}
-      <div className="relative w-72 h-72 sm:w-88 sm:h-88 flex items-center justify-center my-2">
-        <svg className="w-full h-full transform -rotate-90">
+      <div className="relative flex items-center justify-center my-2" style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)' }}>
+        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 360 360">
           <circle
-            cx="50%"
-            cy="50%"
+            cx="180"
+            cy="180"
             r={radius}
             className="stroke-white/[0.08]"
-            strokeWidth="8"
+            strokeWidth="10"
             fill="transparent"
           />
           <circle
-            cx="50%"
-            cy="50%"
+            cx="180"
+            cy="180"
             r={radius}
             className={`transition-all duration-1000 ${
               phase === 'research' ? 'stroke-[#7CC8F3]' : 'stroke-[#C58A55]'
             }`}
-            strokeWidth="8"
+            strokeWidth="10"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
@@ -267,9 +362,8 @@ export const TimerPage: React.FC<TimerPageProps> = ({
           />
         </svg>
 
-        {/* Giant Numbers */}
         <div className="absolute flex flex-col items-center justify-center text-center">
-          <span className="font-serif text-6xl sm:text-7xl lg:text-8xl text-[#7CC8F3] tracking-tighter">
+          <span className="font-serif text-[#7CC8F3] tracking-tighter" style={{ fontSize: 'clamp(3rem, 12vw, 7rem)' }}>
             {formattedTime}
           </span>
           <span className="text-xs font-mono uppercase tracking-widest text-[#AAAAAA] mt-1">
@@ -279,7 +373,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       </div>
 
       {/* Preset Duration Selector */}
-      <div className="flex items-center gap-2 bg-[#111111] p-1.5 rounded-full border border-white/[0.08] mb-3">
+      <div className="flex items-center gap-2 bg-[#111111] p-1.5 rounded-full border border-white/[0.08] mb-3 flex-wrap justify-center">
         {phase === 'research'
           ? [
               { label: '5m', secs: 300 },
@@ -320,74 +414,62 @@ export const TimerPage: React.FC<TimerPageProps> = ({
             ))}
       </div>
 
-      {/* Waveform & Recorder Controls */}
-      <div className="w-full max-w-xl flex flex-col items-center gap-2.5">
-        <canvas ref={canvasRef} width={500} height={40} className="w-full h-10 bg-[#111111] rounded-xl border border-white/[0.05]" />
-        
-        <div className="flex items-center gap-3">
-          {!isRecording ? (
-            <button
-              onClick={startRecording}
-              className="px-4 py-2 rounded-full bg-[#E05D5D]/15 border border-[#E05D5D]/40 text-[#E05D5D] hover:bg-[#E05D5D] hover:text-white transition-all text-xs font-mono flex items-center gap-2 cursor-pointer"
-            >
-              <Mic className="w-3.5 h-3.5" /> RECORD SPEECH
-            </button>
-          ) : (
-            <button
-              onClick={stopRecording}
-              className="px-4 py-2 rounded-full bg-[#E05D5D] text-white transition-all text-xs font-mono flex items-center gap-2 cursor-pointer animate-pulse"
-            >
-              <Square className="w-3.5 h-3.5 fill-current" /> STOP RECORDING
-            </button>
+      {/* Speech Phase: Waveform + Live Transcription */}
+      {phase === 'speech' && (
+        <div className="w-full max-w-xl flex flex-col items-center gap-2.5">
+          <canvas ref={canvasRef} width={500} height={40} className="w-full h-10 bg-[#111111] rounded-xl border border-white/[0.05]" />
+
+          {(speechRecognition.transcript || speechRecognition.interimTranscript) && (
+            <div className="w-full max-h-32 overflow-y-auto p-3 bg-[#111111] rounded-xl border border-white/[0.05] text-sm text-[#CCCCCC] leading-relaxed select-text">
+              {speechRecognition.transcript}
+              <span className="text-[#7CC8F3]/60 italic">
+                {speechRecognition.interimTranscript}
+              </span>
+            </div>
           )}
 
-          {recordedUrl && (
-            <>
-              <button
-                onClick={togglePlayback}
-                className="px-4 py-2 rounded-full bg-[#78B26A]/15 border border-[#78B26A]/40 text-[#78B26A] hover:bg-[#78B26A] hover:text-[#090909] text-xs font-mono flex items-center gap-1.5 cursor-pointer"
-              >
-                {isPlayingRecord ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                PLAYBACK
-              </button>
-              <a
-                href={recordedUrl}
-                download={`Speech-${activeTopic.id}.webm`}
-                className="p-2 rounded-full bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC]"
-              >
-                <Download className="w-3.5 h-3.5" />
-              </a>
-              <button
-                onClick={() => {
-                  if (recordedUrl) URL.revokeObjectURL(recordedUrl);
-                  setRecordedUrl(null);
-                }}
-                className="p-2 rounded-full bg-[#181818] border border-white/[0.08] text-[#666666] hover:text-[#E05D5D]"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </>
+          {!speechRecognition.isSupported && (
+            <p className="text-[10px] font-mono text-[#E0A85D]">
+              Live transcription requires Chrome or Edge browser.
+            </p>
+          )}
+
+          {mediaRecording.isRecording && (
+            <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
+              <div className="w-2 h-2 rounded-full bg-[#E05D5D] animate-pulse" />
+              Recording...
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Main Action Buttons */}
-      <div className="flex items-center gap-4 my-3">
+      <div className="flex items-center gap-3 sm:gap-4 my-3 flex-wrap justify-center">
         {phase === 'research' ? (
           <button
-            onClick={() => switchPhase('speech')}
-            className="px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+            onClick={handleResearchComplete}
+            className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
           >
             Done Researching <ArrowRight className="w-4 h-4" />
           </button>
         ) : (
-          <button
-            onClick={toggleTimer}
-            className="px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-          >
-            {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-            {isRunning ? 'PAUSE TIMER' : 'RESUME TIMER'}
-          </button>
+          <>
+            <button
+              onClick={toggleTimer}
+              className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+            >
+              {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
+              {isRunning ? 'PAUSE' : 'RESUME TIMER'}
+            </button>
+
+            <button
+              onClick={handleDoneSpeaking}
+              className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+            >
+              <Square className="w-4 h-4 fill-current" />
+              Done Speaking
+            </button>
+          </>
         )}
 
         <button

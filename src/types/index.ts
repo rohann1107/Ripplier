@@ -1,33 +1,18 @@
 export type Difficulty = 'Easy' | 'Medium' | 'Hard' | 'Extreme';
 
-export type TopicMode = 'concept' | 'question';
-
 export type Category =
-  | 'General'
   | 'Psychology'
-  | 'Mental Models'
-  | 'Cognitive Biases'
   | 'Philosophy'
-  | 'Leadership'
-  | 'Communication'
-  | 'Business'
-  | 'Startups'
+  | 'Human Behaviour'
   | 'Economics'
-  | 'Finance'
-  | 'Artificial Intelligence'
-  | 'Programming'
-  | 'Design'
-  | 'History'
+  | 'Productivity'
+  | 'Communication'
   | 'Science'
-  | 'Relationships'
-  | 'Creativity'
-  | 'Ethics'
-  | 'Career';
+  | 'AI';
 
 export interface Topic {
   id: string;
   title: string;
-  mode: TopicMode;
   category: Category;
   difficulty: Difficulty;
   tags: string[];
@@ -43,7 +28,6 @@ export interface UserSettings {
   timerDuration: number;
   difficulty: Difficulty | 'All';
   category: Category | 'All';
-  topicMode: TopicMode;
   reducedMotion: boolean;
   autoStartTimer: boolean;
 }
@@ -55,4 +39,23 @@ export interface SpeechRecording {
   duration: number;
   audioUrl: string;
   timestamp: string;
+}
+
+// Filler word count
+export interface FillerWordCount {
+  word: string;
+  count: number;
+}
+
+// Session data for history
+export interface SessionData {
+  id: string;
+  topic: string;
+  topicCategory: Category;
+  date: string; // ISO date string
+  duration: number; // seconds
+  transcript: string;
+  wordsPerMinute: number;
+  totalWords: number;
+  fillerWords: FillerWordCount[];
 }
