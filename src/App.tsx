@@ -66,57 +66,68 @@ export const App: React.FC = () => {
   };
 
   // Smooth 2-second spin with tick sound on same pace
-  const handleStartSpin = useCallback(() => {
+  const spinTimeoutRef = useRef<number | null>(null);
 
+  const handleStartSpin = useCallback(() => {
     if (isSpinning || filteredTopics.length === 0) return;
 
     setIsSpinning(true);
 
-    const target =
-      filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
+    let currentDelay = 45;
+    const maxDelay = 260;
 
-    let delay = 45;          // VERY FAST START
-    const maxDelay = 260;    // VERY SLOW END
+    let target: Topic;
+
+    do {
+      target =
+        filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
+    } while (
+      filteredTopics.length > 1 &&
+      target.id === selectedTopic?.id
+    );
 
     const spin = () => {
+      let random: Topic;
 
-      const random =
-        filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
+      do {
+        random =
+          filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
+      } while (
+        filteredTopics.length > 1 &&
+        random.id === selectedTopic?.id
+      );
 
-      setSelectedTopic(random);
+      setSelectedTopic({ ...random });
 
       audioEngine.playTickSound(0.7);
 
-      delay += 10;
+      currentDelay += 10;
 
-      if (delay < maxDelay) {
-
-        setTimeout(spin, delay);
-
+      if (currentDelay < maxDelay) {
+        spinTimeoutRef.current = window.setTimeout(spin, currentDelay);
       } else {
-
-        // Dramatic pause before landing
-        setTimeout(() => {
-
-          setSelectedTopic(target);
+        spinTimeoutRef.current = window.setTimeout(() => {
+          setSelectedTopic({ ...target });
 
           audioEngine.playLandingSound();
 
           setIsSpinning(false);
-
         }, 350);
-
       }
-
     };
 
     spin();
-
-  }, [filteredTopics, isSpinning]);
+  }, [filteredTopics, isSpinning, selectedTopic]);
 
   useEffect(() => {
     return () => {
-      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+      }
+
+      if (spinTimeoutRef.current) {
+        clearTimeout(spinTimeoutRef.current);
+      }
     };
   }, []);
 
