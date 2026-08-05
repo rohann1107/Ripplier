@@ -66,7 +66,7 @@ export const App: React.FC = () => {
       setSelectedTopic(randomFromNiche);
     }
   };
-  const handleStartSpin = useCallback(() => {
+  const handleStartSpin = useCallback((velocityRatio: number = 0.85) => {
 
     if (spinningRef.current || filteredTopics.length === 0) return;
 
@@ -76,52 +76,75 @@ export const App: React.FC = () => {
     const target =
       filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
 
-    const duration = 2200;
+    const getDurationAndSteps = (ratio: number) => {
+      if (ratio <= 0.1) {
+        // ratio 0.0 -> 0.1 maps to 500ms -> 800ms and 3 -> 6 steps
+        const t = ratio / 0.1;
+        return {
+          duration: 500 + t * 300,
+          steps: Math.round(3 + t * 3)
+        };
+      }
+      if (ratio <= 0.3) {
+        const t = (ratio - 0.1) / 0.2;
+        return {
+          duration: 800 + t * 500,
+          steps: Math.round(6 + t * 4)
+        };
+      }
+      if (ratio <= 0.5) {
+        const t = (ratio - 0.3) / 0.2;
+        return {
+          duration: 1300 + t * 600,
+          steps: Math.round(10 + t * 5)
+        };
+      }
+      if (ratio <= 0.75) {
+        const t = (ratio - 0.5) / 0.25;
+        return {
+          duration: 1900 + t * 800,
+          steps: Math.round(15 + t * 7)
+        };
+      }
+      const t = Math.min(1.0, (ratio - 0.75) / 0.25);
+      return {
+        duration: 2700 + t * 900,
+        steps: Math.round(22 + t * 8)
+      };
+    };
+
+    const { duration, steps } = getDurationAndSteps(velocityRatio);
     const start = performance.now();
 
-    let lastSwitch = 0;
+    // Pre-calculate deceleration steps times
+    const stepTimes: number[] = [];
+    for (let i = 0; i < steps; i++) {
+      // Deceleration curve: step times expand exponentially
+      const t = duration * Math.pow(i / (steps - 1), 2.2);
+      stepTimes.push(t);
+    }
+
+    let currentStep = 0;
 
     const animate = (time: number) => {
-
       const elapsed = time - start;
 
-      const progress = Math.min(elapsed / duration, 1);
+      while (currentStep < steps - 1 && elapsed >= stepTimes[currentStep + 1]) {
+        currentStep++;
+        const random = filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
+        setSelectedTopic({ ...random });
 
-      // slows down gradually
-      const interval =
-        45 + progress * progress * 230;
-
-      if (elapsed - lastSwitch >= interval) {
-
-        lastSwitch = elapsed;
-
-        const random =
-          filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
-
-        setSelectedTopic({
-          ...random,
-        });
-
-        audioEngine.playTickSound(
-          1 - progress
-        );
+        const stepProgress = currentStep / (steps - 1);
+        // Play click tick sound; volume & frequency scale down as it slows
+        audioEngine.playTickSound((1 - stepProgress) * (0.3 + velocityRatio * 0.7));
       }
 
-      if (progress < 1) {
-
-        spinFrameRef.current =
-          requestAnimationFrame(animate);
-
+      if (elapsed < duration) {
+        spinFrameRef.current = requestAnimationFrame(animate);
       } else {
-
-        setSelectedTopic({
-          ...target,
-        });
-
-        audioEngine.playLandingSound();
-
+        setSelectedTopic({ ...target });
+        audioEngine.playLandingSound(velocityRatio);
         spinningRef.current = false;
-
         setIsSpinning(false);
       }
     };
@@ -215,11 +238,11 @@ export const App: React.FC = () => {
 
           <div className="flex items-center justify-center gap-3 sm:gap-3 my-1 flex-wrap w-full max-w-3xl">
             <button
-              onClick={handleStartSpin}
+              onClick={() => handleStartSpin()}
               disabled={isSpinning || filteredTopics.length === 0}
               className={`flex-1 sm:flex-none px-6 py-3 rounded-full text-xs font-mono uppercase tracking-widest font-bold transition-all flex items-center justify-center gap-2 border cursor-pointer min-w-0 ${isSpinning
                 ? 'bg-[#111111] border-white/[0.05] text-[#666666] cursor-not-allowed'
-                : 'bg-[#C58A55] border-[#C58A55] text-[#090909] shadow-glow-gold hover:opacity-90'
+                : 'bg-[#C58A55] border-[#C58A55] text-[#090909] shadow-glow-gold hover:bg-[#D99C66] hover:shadow-[0_0_10px_rgba(236,174,118,0.5)]'
                 }`}
             >
               <Play className="w-4 h-4 fill-current shrink-0" />

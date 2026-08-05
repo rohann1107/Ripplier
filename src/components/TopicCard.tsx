@@ -1,8 +1,7 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import type { Topic } from '../types';
 import { Sparkles } from 'lucide-react';
-import { div } from 'framer-motion/client';
 
 interface TopicCardProps {
   topic: Topic | null;
@@ -10,7 +9,6 @@ interface TopicCardProps {
 }
 export const TopicCard: React.FC<TopicCardProps> = ({
   topic,
-  isSpinning = false,
 }) => {
 
   if (!topic) {

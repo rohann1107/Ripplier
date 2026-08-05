@@ -145,7 +145,7 @@ class MechanicalSoundEngine {
   }
 
   // 4. Topic Reel Landing Sound
-  public playLandingSound() {
+  public playLandingSound(intensity: number = 0.85) {
     if (!this.soundEnabled) return;
     this.initContext();
     if (!this.ctx) return;
@@ -159,7 +159,7 @@ class MechanicalSoundEngine {
     thud.frequency.setValueAtTime(180, now);
     thud.frequency.exponentialRampToValueAtTime(30, now + 0.2);
 
-    thudGain.gain.setValueAtTime(0.35 * this.volume, now);
+    thudGain.gain.setValueAtTime(0.35 * this.volume * intensity, now);
     thudGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
 
     thud.connect(thudGain);
@@ -175,7 +175,7 @@ class MechanicalSoundEngine {
     chime.frequency.exponentialRampToValueAtTime(520, now + 0.6);
 
     chimeGain.gain.setValueAtTime(0.0, now);
-    chimeGain.gain.setValueAtTime(0.18 * this.volume, now + 0.03);
+    chimeGain.gain.setValueAtTime(0.18 * this.volume * intensity, now + 0.03);
     chimeGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.65);
 
     chime.connect(chimeGain);
