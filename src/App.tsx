@@ -19,6 +19,8 @@ export const App: React.FC = () => {
 
   const [isSpinning, setIsSpinning] = useState(false);
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const spinFrameRef = useRef<number | null>(null);
+  const spinningRef = useRef(false);
 
   const [settings, setSettings] = useState<UserSettings>({
     soundEnabled: true,
@@ -64,71 +66,87 @@ export const App: React.FC = () => {
       setSelectedTopic(randomFromNiche);
     }
   };
-
-  // Smooth 2-second spin with tick sound on same pace
-  const spinTimeoutRef = useRef<number | null>(null);
-
   const handleStartSpin = useCallback(() => {
-    if (isSpinning || filteredTopics.length === 0) return;
 
+    if (spinningRef.current || filteredTopics.length === 0) return;
+
+    spinningRef.current = true;
     setIsSpinning(true);
 
-    let currentDelay = 45;
-    const maxDelay = 260;
+    const target =
+      filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
 
-    let target: Topic;
+    const duration = 2200;
+    const start = performance.now();
 
-    do {
-      target =
-        filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
-    } while (
-      filteredTopics.length > 1 &&
-      target.id === selectedTopic?.id
-    );
+    let lastSwitch = 0;
 
-    const spin = () => {
-      let random: Topic;
+    const animate = (time: number) => {
 
-      do {
-        random =
+      const elapsed = time - start;
+
+      const progress = Math.min(elapsed / duration, 1);
+
+      // slows down gradually
+      const interval =
+        45 + progress * progress * 230;
+
+      if (elapsed - lastSwitch >= interval) {
+
+        lastSwitch = elapsed;
+
+        const random =
           filteredTopics[Math.floor(Math.random() * filteredTopics.length)];
-      } while (
-        filteredTopics.length > 1 &&
-        random.id === selectedTopic?.id
-      );
 
-      setSelectedTopic({ ...random });
+        setSelectedTopic({
+          ...random,
+        });
 
-      audioEngine.playTickSound(0.7);
+        audioEngine.playTickSound(
+          1 - progress
+        );
+      }
 
-      currentDelay += 10;
+      if (progress < 1) {
 
-      if (currentDelay < maxDelay) {
-        spinTimeoutRef.current = window.setTimeout(spin, currentDelay);
+        spinFrameRef.current =
+          requestAnimationFrame(animate);
+
       } else {
-        spinTimeoutRef.current = window.setTimeout(() => {
-          setSelectedTopic({ ...target });
 
-          audioEngine.playLandingSound();
+        setSelectedTopic({
+          ...target,
+        });
 
-          setIsSpinning(false);
-        }, 350);
+        audioEngine.playLandingSound();
+
+        spinningRef.current = false;
+
+        setIsSpinning(false);
       }
     };
 
-    spin();
-  }, [filteredTopics, isSpinning, selectedTopic]);
+    spinFrameRef.current =
+      requestAnimationFrame(animate);
+
+  }, [filteredTopics]);
+
+
 
   useEffect(() => {
+
     return () => {
+
+      if (spinFrameRef.current) {
+        cancelAnimationFrame(spinFrameRef.current);
+      }
+
       if (animFrameRef.current) {
         cancelAnimationFrame(animFrameRef.current);
       }
 
-      if (spinTimeoutRef.current) {
-        clearTimeout(spinTimeoutRef.current);
-      }
     };
+
   }, []);
 
   useEffect(() => {
