@@ -19,7 +19,8 @@ export type Category =
   | 'Health'
   | 'Relationships'
   | 'Leadership'
-  | 'Ethics';
+  | 'Ethics'
+  | 'Space';
 
 export interface Topic {
   id: string;
