@@ -33,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
           <h1 className="font-serif text-2xl tracking-wide text-[#F5F2EC] flex items-center gap-2">
             RIPPLIER
             <span className="text-[10px] font-mono tracking-widest px-1.5 py-0.5 rounded bg-white/[0.08] text-[#C58A55] uppercase">
-              1.2
+              1.7
             </span>
           </h1>
 

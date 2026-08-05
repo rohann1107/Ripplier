@@ -2,6 +2,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Topic } from '../types';
 import { Sparkles } from 'lucide-react';
+import { div } from 'framer-motion/client';
 
 interface TopicCardProps {
   topic: Topic | null;
@@ -46,20 +47,21 @@ export const TopicCard: React.FC<TopicCardProps> = ({
       </div>
 
       {/* Animated Seed/Topic Display with Framer Motion */}
+      {/* Animated Topic */}
       <div className="min-h-[100px] flex items-center my-2 overflow-hidden relative">
-        <AnimatePresence mode="wait">
-          <motion.h2
-            key={topic.id}
-            initial={{ opacity: 0, y: isSpinning ? 15 : -15, filter: 'blur(4px)' }}
-            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-            exit={{ opacity: 0, y: isSpinning ? -15 : 15, filter: 'blur(4px)' }}
-            transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="font-serif text-[#F5F2EC] leading-[1.15] tracking-tight break-words w-full text-[2.2rem] sm:text-[4.2rem] lg:text-[4.1rem] font-normal"          >
-            {topic.title}
-          </motion.h2>
-        </AnimatePresence>
+        <motion.h2
+          key={topic.id}
+          initial={{ opacity: 0, y: 11 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{
+            duration: 0.18,
+            ease: "easeOut"
+          }}
+          className="font-serif text-[#F5F2EC] leading-[1.15] tracking-tight break-words w-full text-[2.2rem] sm:text-[4.2rem] lg:text-[4.1rem] font-normal"
+        >
+          {topic.title}
+        </motion.h2>
       </div>
-
-    </div>
+    </div >
   );
 };
