@@ -1,6 +1,7 @@
 # 🌊 Ripplier
 
-> Think Better. Speak Better. 
+> Think Better. Speak Better.
+**🚀Live Demo:** [Ripple](https://ripplier.vercel.app)
 
 Ripple is an  public speaking platform that helps users by there Own improve communication, critical thinking, and confidence through randomly generated discussion topics, real-time speech analysis, and AI-powered feedback.
 
