@@ -140,7 +140,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   const [transcribePercent, setTranscribePercent] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
   const recordedBlobRef = useRef<Blob | null>(null);
-  const [liveTranscript, setLiveTranscript] = useState("");
   const conversionPromiseRef = useRef<Promise<Blob> | null>(null);
 
   // Smooth asymptotic percentage animation
@@ -171,38 +170,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       if (animId) cancelAnimationFrame(animId);
     };
   }, [isTranscribing, isModelLoading, isFinishing]);
-
-  // Live transcription interval during active speech
-  useEffect(() => {
-    if (phase !== 'speech' || !isRunning || !mediaRecording.isRecording) {
-      return;
-    }
-
-    let isLiveProcessing = false;
-
-    const intervalId = setInterval(async () => {
-      if (isLiveProcessing) return;
-      if (!transcriptionService.isReady()) return;
-
-      const pcmData = mediaRecording.getLivePCM();
-      if (!pcmData || pcmData.samples.length < pcmData.sampleRate * 2.5) return; // Wait for 2.5 seconds of audio
-
-      isLiveProcessing = true;
-      try {
-        console.log("Running live transcription on raw PCM...");
-        const partialText = await transcriptionService.transcribeRaw(pcmData.samples, pcmData.sampleRate, false);
-        if (partialText) {
-          setLiveTranscript(partialText);
-        }
-      } catch (err) {
-        console.warn("Live transcription chunk failed:", err);
-      } finally {
-        isLiveProcessing = false;
-      }
-    }, 4000);
-
-    return () => clearInterval(intervalId);
-  }, [phase, isRunning, mediaRecording]);
 
 
 
@@ -260,7 +227,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       recordedBlobRef.current = null;
       conversionPromiseRef.current = null;
       setTranscriptionError(null);
-      setLiveTranscript("");
 
       totalPausedMsRef.current = 0;
       pauseStartedRef.current = null;
@@ -308,7 +274,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       mediaRecording.reset();
       recordedBlobRef.current = null;
       conversionPromiseRef.current = null;
-      setLiveTranscript("");
 
       setSpeechStartTime(null);
       setTotalSpeechDuration(0);
@@ -324,7 +289,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     mediaRecording.reset();
     recordedBlobRef.current = null;
     conversionPromiseRef.current = null;
-    setLiveTranscript("");
   }, [speechSecs, mediaRecording]);
 
   // Start Speech: starts both the countdown timer and the microphone recording/transcription
@@ -437,7 +401,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       recordedBlobRef.current = null;
       conversionPromiseRef.current = null;
       setTranscriptionError(null);
-      setLiveTranscript("");
 
       setSpeechStartTime(null);
       setTotalSpeechDuration(0);
@@ -999,16 +962,6 @@ Here is my speech transcript:
             <div className="flex items-center gap-2 text-xs font-mono text-[#E0A85D]">
               <div className="w-2 h-2 rounded-full bg-[#E0A85D]" />
               Paused
-            </div>
-          )}
-
-          {mediaRecording.isRecording && (
-            <div className="w-full mt-2 space-y-2 select-text animate-fade-in animate-pulse-subtle">
-              <div className="flex mb-2 items-center gap-2 text-xs font-mono text-[#AAAAAA] tracking-wider justify-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#7CC8F3] animate-pulse" />
-                Live Transcripting...
-              </div>
-
             </div>
           )}
         </div>

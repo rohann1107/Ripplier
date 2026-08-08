@@ -12,8 +12,6 @@ interface MediaRecordingHook {
   resume: () => void;
   reset: () => void;
   analyserNode: AnalyserNode | null;
-  getCurrentlyRecordedBlob: () => Blob | null;
-  getLivePCM: () => { samples: Float32Array; sampleRate: number } | null;
 }
 
 export function useMediaRecording(): MediaRecordingHook {
@@ -30,8 +28,6 @@ export function useMediaRecording(): MediaRecordingHook {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopResolverRef = useRef<((blob: Blob) => void) | null>(null);
-  const pcmBufferRef = useRef<Float32Array>(new Float32Array(0));
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
 
   const start = useCallback(async () => {
     try {
@@ -47,24 +43,6 @@ export function useMediaRecording(): MediaRecordingHook {
       source.connect(analyser);
       audioCtxRef.current = audioCtx;
       setAnalyserNode(analyser);
-
-      // Set up ScriptProcessorNode for live PCM extraction
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      source.connect(processor);
-      processor.connect(audioCtx.destination);
-      processorRef.current = processor;
-      pcmBufferRef.current = new Float32Array(0);
-
-      processor.onaudioprocess = (e) => {
-        if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') return;
-        const inputData = e.inputBuffer.getChannelData(0);
-        
-        const currentPcm = pcmBufferRef.current;
-        const newBuffer = new Float32Array(currentPcm.length + inputData.length);
-        newBuffer.set(currentPcm);
-        newBuffer.set(inputData, currentPcm.length);
-        pcmBufferRef.current = newBuffer;
-      };
 
       // Set up MediaRecorder
       const mediaRecorder = new MediaRecorder(stream);
@@ -114,12 +92,6 @@ export function useMediaRecording(): MediaRecordingHook {
         resolve(new Blob([], { type: 'audio/webm' }));
       }
 
-      if (processorRef.current) {
-        processorRef.current.disconnect();
-        processorRef.current.onaudioprocess = null;
-        processorRef.current = null;
-      }
-
       setIsRecording(false);
       setIsPaused(false);
       if (durationTimerRef.current) clearInterval(durationTimerRef.current);
@@ -151,26 +123,13 @@ export function useMediaRecording(): MediaRecordingHook {
     setAudioBlob(null);
     setDuration(0);
     setAnalyserNode(null);
-    pcmBufferRef.current = new Float32Array(0);
   }, [stop, audioUrl]);
-
-  const getCurrentlyRecordedBlob = useCallback(() => {
-    if (!audioChunksRef.current || audioChunksRef.current.length === 0) {
-      return null;
-    }
-    return new Blob(audioChunksRef.current, { type: 'audio/webm' });
-  }, []);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
-      }
-      if (processorRef.current) {
-        processorRef.current.disconnect();
-        processorRef.current.onaudioprocess = null;
-        processorRef.current = null;
       }
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
@@ -181,16 +140,6 @@ export function useMediaRecording(): MediaRecordingHook {
       if (durationTimerRef.current) {
         clearInterval(durationTimerRef.current);
       }
-    };
-  }, []);
-
-  const getLivePCM = useCallback(() => {
-    if (!pcmBufferRef.current || pcmBufferRef.current.length === 0) {
-      return null;
-    }
-    return {
-      samples: pcmBufferRef.current,
-      sampleRate: audioCtxRef.current ? audioCtxRef.current.sampleRate : 44100
     };
   }, []);
 
@@ -206,7 +155,5 @@ export function useMediaRecording(): MediaRecordingHook {
     resume,
     reset,
     analyserNode,
-    getCurrentlyRecordedBlob,
-    getLivePCM,
   };
 }

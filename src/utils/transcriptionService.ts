@@ -115,27 +115,24 @@ export class TranscriptionService {
     this.notify({ status: 'loading', message: 'Preparing offline transcription…' });
 
     this.initPromise = (async () => {
-      try {
-        let device = 'wasm';
-        // Feature detect WebGPU
-        if (navigator && navigator.gpu) {
-          try {
-            const adapter = await navigator.gpu.requestAdapter();
-            if (adapter) {
-              device = 'webgpu';
-              console.log('Transcription service using WebGPU');
-            }
-          } catch (e) {
-            console.warn('WebGPU request adapter failed, falling back to WASM/CPU', e);
+      const modelName = 'onnx-community/whisper-tiny.en';
+      let hasWebGPU = false;
+
+      // 1. Detect if WebGPU is generally supported in the environment
+      if (navigator && (navigator as any).gpu) {
+        try {
+          const adapter = await (navigator as any).gpu.requestAdapter();
+          if (adapter) {
+            hasWebGPU = true;
           }
+        } catch (e) {
+          console.warn('WebGPU request adapter failed:', e);
         }
+      }
 
-        // Initialize pipeline
-        const modelName = 'onnx-community/whisper-tiny.en';
-        console.log(`Loading model ${modelName} on ${device}...`);
-
-        const transcriber = await pipeline('automatic-speech-recognition', modelName, {
-          device: device as any,
+      const loadPipeline = async (deviceType: 'webgpu' | 'wasm') => {
+        return await pipeline('automatic-speech-recognition', modelName, {
+          device: deviceType,
           progress_callback: (data: any) => {
             if (data.status === 'progress') {
               this.notify({
@@ -148,6 +145,27 @@ export class TranscriptionService {
             }
           }
         });
+      };
+
+      try {
+        let transcriber;
+        if (hasWebGPU) {
+          try {
+            console.log(`[TRANSCRIPTION] Attempting to load model ${modelName} on WebGPU...`);
+            transcriber = await loadPipeline('webgpu');
+            console.log('[TRANSCRIPTION] Using WebGPU');
+          } catch (webGpuErr) {
+            console.warn('[TRANSCRIPTION] WebGPU initialization failed, falling back to WASM:', webGpuErr);
+            console.log(`[TRANSCRIPTION] Attempting to load model ${modelName} on WASM...`);
+            transcriber = await loadPipeline('wasm');
+            console.log('[TRANSCRIPTION] WebGPU initialization failed, falling back to WASM');
+          }
+        } else {
+          console.log('[TRANSCRIPTION] WebGPU unavailable, using WASM');
+          console.log(`[TRANSCRIPTION] Attempting to load model ${modelName} on WASM...`);
+          transcriber = await loadPipeline('wasm');
+          console.log('[TRANSCRIPTION] Using WASM');
+        }
 
         this.transcriber = transcriber;
         this.isInitializing = false;
@@ -156,7 +174,7 @@ export class TranscriptionService {
       } catch (err) {
         this.isInitializing = false;
         this.initPromise = null;
-        console.error('Failed to initialize transcription engine:', err);
+        console.error('[TRANSCRIPTION] WASM initialization failed:', err);
         this.notify({ status: 'error', message: 'Failed to prepare offline transcription.' });
         throw err;
       }
@@ -209,75 +227,6 @@ export class TranscriptionService {
     return pcmData;
   }
 
-  public downsampleTo16k(samples: Float32Array, inputSampleRate: number): Float32Array {
-    if (inputSampleRate === 16000) return samples;
-    const sampleRateRatio = inputSampleRate / 16000;
-    const newLength = Math.round(samples.length / sampleRateRatio);
-    const result = new Float32Array(newLength);
-    let offsetResult = 0;
-    let offsetBuffer = 0;
-    while (offsetResult < result.length) {
-      const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
-      let accum = 0;
-      let count = 0;
-      for (let i = offsetBuffer; i < nextOffsetBuffer && i < samples.length; i++) {
-        accum += samples[i];
-        count++;
-      }
-      result[offsetResult] = count > 0 ? accum / count : 0;
-      offsetResult++;
-      offsetBuffer = nextOffsetBuffer;
-    }
-    return result;
-  }
-
-  public async transcribeRaw(
-    samples: Float32Array,
-    inputSampleRate: number,
-    notifyProgress: boolean = false
-  ): Promise<string> {
-    if (notifyProgress) {
-      this.notify({ status: 'transcribing', message: 'Transcribing your speech…' });
-    }
-
-    try {
-      if (!this.transcriber) {
-        await this.initialize();
-      }
-
-      if (!this.transcriber) {
-        throw new Error('Transcription pipeline not initialized');
-      }
-
-      // Resample to 16kHz mono
-      const pcmData = this.downsampleTo16k(samples, inputSampleRate);
-      console.log(`[TRANSCRIPTION DEBUG] Raw PCM input sample count: ${samples.length}, resampled count: ${pcmData.length}, Whisper input duration: ${(pcmData.length / 16000).toFixed(2)}s`);
-
-      // Run Whisper model
-      console.log('Running Whisper transcription locally on raw PCM...');
-      const output = await this.transcriber(pcmData, {
-        chunk_length_s: 30,
-        stride_length_s: 5,
-        return_timestamps: false,
-        repetition_penalty: 1.2,
-        no_repeat_ngram_size: 4,
-      });
-
-      const text = (output.text || '').trim();
-      const sanitizedText = sanitizePathologicalHallucinations(text, pcmData.length / 16000);
-
-      if (notifyProgress) {
-        this.notify({ status: 'done', message: 'Transcript ready' });
-      }
-      return sanitizedText;
-    } catch (err) {
-      console.error('Raw transcription error:', err);
-      if (notifyProgress) {
-        this.notify({ status: 'error', message: "We couldn't transcribe this recording." });
-      }
-      throw err;
-    }
-  }
 
   public async transcribe(audioBlob: Blob, notifyProgress: boolean = true): Promise<string> {
     if (notifyProgress) {
