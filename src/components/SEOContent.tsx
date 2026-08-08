@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Sparkles, Play, Award, Timer, MessageSquare, Volume2, Users, HelpCircle, ChevronDown } from 'lucide-react';
+import { Sparkles, Play, HelpCircle, ChevronDown } from 'lucide-react';
 import { CATEGORIES } from '../data/topics';
 
 export const SEOContent: React.FC = () => {

@@ -7,6 +7,7 @@ import { TimerPage } from './components/TimerPage';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { Footer } from './components/Footer';
 import { SEOContent } from './components/SEOContent';
+import { transcriptionService } from './utils/transcriptionService';
 
 import { TOPICS } from './data/topics';
 import type { Topic, Category, UserSettings } from './types';
@@ -40,6 +41,24 @@ export const App: React.FC = () => {
     audioEngine.setSoundEnabled(settings.soundEnabled);
     audioEngine.setVolume(settings.volume);
   }, [settings.soundEnabled, settings.volume]);
+
+  // Preload Whisper model silently in the background
+  useEffect(() => {
+    const preloadModel = () => {
+      console.log('Preloading local Whisper model in background...');
+      transcriptionService.initialize().catch((err) => {
+        console.warn('Background model preload failed, will retry on transcription.', err);
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(() => preloadModel(), { timeout: 10000 });
+      } else {
+        setTimeout(preloadModel, 2000);
+      }
+    }
+  }, []);
 
   const filteredTopics = useMemo(() => {
     return TOPICS.filter((t) => {

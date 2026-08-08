@@ -2,12 +2,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Play, Pause, RotateCcw, ArrowRight, X, Square } from 'lucide-react';
 import type { Topic, FillerWordCount } from '../types';
 import { audioEngine } from '../utils/audioEngine';
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { useMediaRecording } from '../hooks/useMediaRecording';
 import { saveSession, generateSessionId, calculateWPM, countWords } from '../utils/sessionStore';
 import { SessionSummary } from './SessionSummary';
 import { TranscriptView } from './TranscriptView';
-import { isChromeRecommended } from "../utils/browser";
+import { transcriptionService } from '../utils/transcriptionService';
 
 interface TimerPageProps {
   topic: Topic;
@@ -127,14 +126,51 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
   const [isRunning, setIsRunning] = useState(false);
 
-  const speechRecognition = useSpeechRecognition();
   const mediaRecording = useMediaRecording();
 
   const [sessionTranscript, setSessionTranscript] = useState("");
   const [sessionFillerWords, setSessionFillerWords] = useState<FillerWordCount[]>([]);
 
+  // Local Whisper transcription states
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isModelLoading, setIsModelLoading] = useState(false);
+  const [transcriptionError, setTranscriptionError] = useState<string | null>(null);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [transcribePercent, setTranscribePercent] = useState(0);
+  const [isFinishing, setIsFinishing] = useState(false);
+  const recordedBlobRef = useRef<Blob | null>(null);
 
-  const [showBrowserWarning, setShowBrowserWarning] = useState(false);
+  // Smooth asymptotic percentage animation
+  useEffect(() => {
+    if (!isTranscribing || isModelLoading || isFinishing) {
+      if (!isTranscribing) {
+        setTranscribePercent(0);
+      }
+      return;
+    }
+
+    let animId: number;
+    let currentPercent = 0;
+
+    const tick = () => {
+      // Decelerate smoothly as we approach 92%
+      const delta = (92 - currentPercent) * 0.035;
+      currentPercent += Math.max(0.05, delta);
+      setTranscribePercent(Math.floor(currentPercent));
+
+      if (currentPercent < 92) {
+        animId = requestAnimationFrame(tick);
+      }
+    };
+
+    animId = requestAnimationFrame(tick);
+    return () => {
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isTranscribing, isModelLoading, isFinishing]);
+
+
+
   const [speechStartTime, setSpeechStartTime] = useState<number | null>(null);
   const [totalSpeechDuration, setTotalSpeechDuration] = useState(0);
 
@@ -183,11 +219,11 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   }, [phase]);
 
   const continueSpeechAnyway = useCallback(async () => {
-    setShowBrowserWarning(false);
 
     try {
       mediaRecording.reset();
-      speechRecognition.reset();
+      recordedBlobRef.current = null;
+      setTranscriptionError(null);
 
       totalPausedMsRef.current = 0;
       pauseStartedRef.current = null;
@@ -200,10 +236,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       endTimeRef.current = now + speechSecs * 1000;
       timerStartedRef.current = true;
 
-      speechRecognition.start();
-
-      await new Promise(resolve => setTimeout(resolve, 100));
-
       await mediaRecording.start();
 
       setTimeLeft(speechSecs);
@@ -213,7 +245,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       console.error(err);
     }
 
-  }, [speechSecs, mediaRecording, speechRecognition]);
+  }, [speechSecs, mediaRecording]);
 
   const handleSelectSpeechDuration = useCallback((secs: number) => {
     audioEngine.playClickSound();
@@ -237,12 +269,12 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       setTimeLeft(secs);
 
       mediaRecording.reset();
-      speechRecognition.reset();
+      recordedBlobRef.current = null;
 
       setSpeechStartTime(null);
       setTotalSpeechDuration(0);
     }
-  }, [phase, mediaRecording, speechRecognition]);
+  }, [phase, mediaRecording]);
 
   const handleResearchComplete = useCallback(() => {
     audioEngine.playClickSound();
@@ -251,23 +283,30 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     setTimeLeft(speechSecs);
 
     mediaRecording.reset();
-    speechRecognition.reset();
-  }, [speechSecs, mediaRecording, speechRecognition]);
+    recordedBlobRef.current = null;
+  }, [speechSecs, mediaRecording]);
 
   // Start Speech: starts both the countdown timer and the microphone recording/transcription
   const handleStartSpeech = useCallback(async () => {
-
     audioEngine.playClickSound();
 
-    const supported = await isChromeRecommended();
+    // Feature detect capabilities
+    if (
+      typeof window === 'undefined' ||
+      !navigator.mediaDevices ||
+      !navigator.mediaDevices.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      setTranscriptionError("Audio recording is not supported in this browser. Please use Chrome or Safari.");
+      return;
+    }
 
-    if (!supported) {
-      setShowBrowserWarning(true);
+    if (typeof WebAssembly === 'undefined') {
+      setTranscriptionError("Local transcription requires WebAssembly, which is not supported by your browser.");
       return;
     }
 
     continueSpeechAnyway();
-
   }, [continueSpeechAnyway]);
 
 
@@ -301,7 +340,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       setIsRunning(false);
 
       mediaRecording.pause();
-      speechRecognition.pause();
 
     } else {
 
@@ -319,7 +357,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       setIsRunning(true);
 
       mediaRecording.resume();
-      speechRecognition.resume();
     }
 
   }, [
@@ -327,7 +364,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     isRunning,
     timeLeft,
     mediaRecording,
-    speechRecognition,
     handleStartSpeech,
   ]);
 
@@ -357,16 +393,129 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     if (phase === "speech") {
 
       mediaRecording.reset();
-      speechRecognition.reset();
+      recordedBlobRef.current = null;
+      setTranscriptionError(null);
 
       setSpeechStartTime(null);
       setTotalSpeechDuration(0);
     }
   };
+  const performTranscription = useCallback(async (audioBlob: Blob, duration: number) => {
+    setIsTranscribing(true);
+    setTranscriptionError(null);
+    setIsFinishing(false);
+    setTranscribePercent(0);
+
+    const modelReady = transcriptionService.isReady();
+    setIsModelLoading(!modelReady);
+    if (!modelReady) {
+      setLoadingMessage("Preparing transcription…");
+    } else {
+      setLoadingMessage("");
+    }
+
+    transcriptionService.setProgressCallback((progress) => {
+      if (progress.status === 'loading') {
+        setIsModelLoading(true);
+        setLoadingMessage(progress.message);
+      } else if (progress.status === 'ready') {
+        setIsModelLoading(false);
+        setLoadingMessage('');
+      } else if (progress.status === 'transcribing') {
+        setIsModelLoading(false);
+        setLoadingMessage(progress.message);
+      } else if (progress.status === 'error') {
+        setIsModelLoading(false);
+        setIsTranscribing(false);
+        setTranscriptionError(progress.message);
+      }
+    });
+
+    try {
+      const text = await transcriptionService.transcribe(audioBlob);
+
+      // Smoothly animate progress bar to 100% before transitioning
+      setIsFinishing(true);
+      
+      await new Promise<void>((resolve) => {
+        let startPercent = 0;
+        setTranscribePercent((prev) => {
+          startPercent = prev;
+          return prev;
+        });
+
+        const durationMs = 350; // Animate to 100% in 350ms
+        const startTime = performance.now();
+
+        const anim = (now: number) => {
+          const elapsed = now - startTime;
+          const progress = Math.min(1, elapsed / durationMs);
+          const eased = 1 - Math.pow(1 - progress, 3);
+          const current = startPercent + (100 - startPercent) * eased;
+          
+          setTranscribePercent(Math.floor(current));
+
+          if (progress < 1) {
+            requestAnimationFrame(anim);
+          } else {
+            setTranscribePercent(100);
+            setTimeout(resolve, 200); // Hold 100% momentarily for luxury feeling
+          }
+        };
+        requestAnimationFrame(anim);
+      });
+
+      setSessionTranscript(text);
+
+      const lowerTranscript = text.toLowerCase();
+      const fillerCounts: FillerWordCount[] = [];
+
+      for (const word of FILLER_WORDS) {
+        const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(`\\b${escaped}\\b`, "gi");
+        const matches = lowerTranscript.match(regex);
+        if (matches && matches.length > 0) {
+          fillerCounts.push({
+            word,
+            count: matches.length,
+          });
+        }
+      }
+
+      setSessionFillerWords(fillerCounts);
+      const wordCount = countWords(text);
+      const wpm = calculateWPM(text, duration);
+
+      saveSession({
+        id: generateSessionId(),
+        topic: activeTopic.title,
+        topicCategory: activeTopic.category,
+        date: new Date().toISOString(),
+        duration,
+        transcript: text,
+        wordsPerMinute: wpm,
+        totalWords: wordCount,
+        fillerWords: fillerCounts,
+      });
+
+      setTimerView("summary");
+    } catch (err) {
+      console.error('Local transcription failed:', err);
+      // Stay on current page, error state handled via overlay
+    } finally {
+      setIsTranscribing(false);
+      setIsFinishing(false);
+    }
+  }, [activeTopic]);
+
+  const handleRetryTranscription = async () => {
+    if (recordedBlobRef.current) {
+      await performTranscription(recordedBlobRef.current, totalSpeechDuration);
+    }
+  };
+
   const handleDoneSpeaking = useCallback(async () => {
-
     audioEngine.playClickSound();
-
     setIsRunning(false);
 
     if (intervalRef.current) {
@@ -375,14 +524,11 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     }
 
     timerStartedRef.current = false;
-
     endTimeRef.current = 0;
-
     pausedRemainingRef.current = 0;
 
-    await mediaRecording.stop();
-
-    speechRecognition.stop();
+    const blob = await mediaRecording.stop();
+    recordedBlobRef.current = blob;
 
     const duration = speechStartTime
       ? Math.max(
@@ -398,70 +544,15 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
     setTotalSpeechDuration(duration);
 
-    const transcript = speechRecognition.transcript.trim();
-
-    setSessionTranscript(transcript);
-
-    const lowerTranscript = transcript.toLowerCase();
-
-    const fillerCounts: FillerWordCount[] = [];
-
-    for (const word of FILLER_WORDS) {
-
-      const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-      const regex = new RegExp(`\\b${escaped}\\b`, "gi");
-
-      const matches = lowerTranscript.match(regex);
-
-      if (matches && matches.length > 0) {
-
-        fillerCounts.push({
-          word,
-          count: matches.length,
-        });
-
-      }
-
-    }
-
-    setSessionFillerWords(fillerCounts);
-
-    const wordCount = countWords(transcript);
-
-    const wpm = calculateWPM(transcript, duration);
-
-    saveSession({
-
-      id: generateSessionId(),
-
-      topic: activeTopic.title,
-
-      topicCategory: activeTopic.category,
-
-      date: new Date().toISOString(),
-
-      duration,
-
-      transcript,
-
-      wordsPerMinute: wpm,
-
-      totalWords: wordCount,
-
-      fillerWords: fillerCounts,
-
-    });
-
-    setTimerView("summary");
+    // Trigger local Whisper transcription
+    await performTranscription(blob, duration);
 
   }, [
     speechSecs,
     timeLeft,
     speechStartTime,
-    activeTopic,
-    speechRecognition,
     mediaRecording,
+    performTranscription,
   ]);
   useEffect(() => {
     return () => {
@@ -474,7 +565,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       }
 
       mediaRecording.stop();
-      speechRecognition.stop();
     };
   }, []);
 
@@ -748,7 +838,6 @@ Here is my speech transcript:
             audioEngine.playClickSound();
             if (phase === 'speech') {
               mediaRecording.stop();
-              speechRecognition.stop();
             }
             onClose();
           }}
@@ -843,65 +932,10 @@ Here is my speech transcript:
           ))}
       </div>
 
-      {/* Speech Phase: Waveform + Live Transcription */}
+      {/* Speech Phase: Waveform */}
       {phase === 'speech' && (
         <div className="w-full max-w-xl flex flex-col items-center gap-2.5">
           <canvas ref={canvasRef} width={500} height={40} className="w-full h-10 bg-[#111111] rounded-xl border border-white/[0.05]" />
-
-          {(speechRecognition.transcript || speechRecognition.interimTranscript) && (
-            <div className="w-full max-h-32 overflow-y-auto p-3 bg-[#111111] rounded-xl border border-white/[0.05] text-sm text-[#CCCCCC] leading-relaxed select-text">
-              {speechRecognition.transcript}
-              <span className="text-[#7CC8F3]/60 italic">
-                {speechRecognition.interimTranscript}
-              </span>
-            </div>
-          )}
-
-          {showBrowserWarning && (
-            <div className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm flex items-center justify-center p-5">
-
-              <div className="w-full max-w-md rounded-3xl bg-[#111111] border border-white/10 p-6">
-
-                <div className="text-5xl text-center mb-4">
-                  🎤
-                </div>
-
-                <h2 className="text-center font-serif text-2xl text-[#F5F2EC]">
-                  Browser Compatibility
-                </h2>
-
-                <p className="mt-4 text-center text-sm leading-7 text-[#AAAAAA]">
-                  Live speech transcription may not work correctly in your current browser.
-                </p>
-
-                <p className="mt-3 text-center text-sm leading-7 text-[#AAAAAA]">
-                  For the best transcription experience, we recommend using
-                  <span className="text-[#F5F2EC] font-semibold"> Google Chrome</span>.
-                </p>
-
-                <div className="mt-8 flex gap-3">
-
-                  <button
-                    onClick={() => setShowBrowserWarning(false)}
-                    className="flex-1 py-3 rounded-2xl border border-white/10 bg-[#181818] text-[#AAAAAA] hover:text-white transition-all"
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    onClick={continueSpeechAnyway}
-                    className="flex-1 py-3 rounded-2xl bg-[#C58A55] text-[#090909] font-semibold hover:opacity-90 transition-all"
-                  >
-                    Continue anyway
-                  </button>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          )}
 
           {mediaRecording.isRecording && !mediaRecording.isPaused && (
             <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
@@ -976,6 +1010,101 @@ Here is my speech transcript:
           <RotateCcw className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Local Whisper Transcription Overlays */}
+      {isTranscribing && (
+        <div className="fixed inset-0 z-[100] bg-[#090909]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in select-none">
+          <div className="w-full max-w-md p-8 rounded-3xl bg-[#111111] border border-white/[0.08] shadow-[0_0_50px_-12px_rgba(197,138,85,0.15)] relative overflow-hidden animate-scale-up">
+            {/* Ambient gold glow */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#C58A55]/[0.08] rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
+            
+            <div className="relative z-10 flex flex-col items-center gap-8 py-4">
+              {/* Header */}
+              <div className="space-y-1">
+                <h3 className="font-serif text-3xl sm:text-4xl text-[#F5F2EC] tracking-tight leading-tight">
+                  {isModelLoading ? 'Preparing' : 'Transcribing'}
+                </h3>
+                <p className="font-serif text-3xl sm:text-4xl text-[#F5F2EC]/80 tracking-tight leading-tight italic">
+                  {isModelLoading ? 'transcription…' : 'your speech'}
+                </p>
+              </div>
+
+              {/* Progress Percentage Display */}
+              <div className="my-2">
+                <span className="font-serif text-6xl md:text-7xl font-normal text-[#C58A55] tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(197,138,85,0.25)]">
+                  {isModelLoading ? '...' : `${transcribePercent}%`}
+                </span>
+              </div>
+
+              {/* Premium Progress Bar */}
+              <div className="w-full px-4">
+                <div className="w-full h-[3px] bg-white/[0.06] rounded-full overflow-hidden relative">
+                  <div 
+                    className="h-full bg-gradient-to-r from-[#C58A55] to-[#D4995F] shadow-[0_0_8px_#C58A55] rounded-full transition-all duration-300 ease-out"
+                    style={{ width: isModelLoading ? '15%' : `${transcribePercent}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Sub-status Message */}
+              <div className="min-h-[20px]">
+                <p className="text-xs font-mono text-[#AAAAAA] uppercase tracking-widest animate-pulse">
+                  {isModelLoading 
+                    ? (loadingMessage || 'Configuring local speech engine...') 
+                    : (isFinishing ? 'Transcript Ready' : 'Analyzing your recording...')}
+                </p>
+              </div>
+
+              {/* Privacy/Offline Footer Notice */}
+              <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs mt-2">
+                Whisper is running entirely offline in your browser. Your recording never leaves your device.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {transcriptionError && (
+        <div className="fixed inset-0 z-[100] bg-[#090909]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+          <div className="w-full max-w-md p-8 rounded-3xl bg-[#111111] border border-white/[0.08] shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-[#E05D5D]/[0.05] rounded-full blur-3xl pointer-events-none" />
+            <div className="relative z-10 flex flex-col items-center gap-6">
+              <div className="text-4xl">⚠️</div>
+              <div className="space-y-2">
+                <h3 className="font-serif text-2xl text-[#F5F2EC]">
+                  Offline Transcription Alert
+                </h3>
+                <p className="text-xs text-[#E05D5D] font-mono uppercase tracking-wider">
+                  {transcriptionError}
+                </p>
+              </div>
+              <div className="flex flex-col gap-2.5 w-full">
+                {recordedBlobRef.current && (
+                  <button
+                    onClick={handleRetryTranscription}
+                    className="w-full py-3 rounded-xl bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-widest font-bold hover:bg-[#D99C66] transition-all cursor-pointer shadow-glow-gold"
+                  >
+                    Retry Transcription
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setSessionTranscript("");
+                    setTimerView("summary");
+                    setTranscriptionError(null);
+                  }}
+                  className="w-full py-3 rounded-xl bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] text-xs font-mono uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  Skip to Summary
+                </button>
+              </div>
+              <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs">
+                Your audio recording remains fully available for playback and download.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

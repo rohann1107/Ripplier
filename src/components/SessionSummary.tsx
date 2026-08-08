@@ -48,7 +48,6 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   const [audioDuration, setAudioDuration] = React.useState(speakingTime);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
   const [fileName, setFileName] = React.useState('');
-  const [speechNumber, setSpeechNumber] = React.useState(1);
   const speechNumberInitialized = React.useRef(false);
 
 
@@ -69,8 +68,6 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
       String(nextNumber)
     );
 
-    setSpeechNumber(nextNumber);
-
     const safeTopicTitle = (topicTitle || 'Untitled Topic')
       .replace(/[-–—]/g, ' ')
       .replace(/\s+/g, ' ')
@@ -82,47 +79,53 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   }, [topicTitle]);
   // Initialize and clean up audio
   React.useEffect(() => {
-    if (audioUrl) {
-      const audio = new Audio(audioUrl);
-      audioRef.current = audio;
+    if (!audioUrl) return;
 
-      const handleTimeUpdate = () => {
-        setCurrentTime(audio.currentTime);
-      };
+    const audio = new Audio();
+    audio.src = audioUrl;
+    audio.preload = "metadata";
 
-      const handleLoadedMetadata = () => {
-        if (isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
-          setAudioDuration(audio.duration);
-        } else {
-          setAudioDuration(speakingTime);
-        }
-      };
+    audioRef.current = audio;
 
-      const handleEnded = () => {
-        setIsPlaying(false);
-        setCurrentTime(0);
-      };
+    const updateDuration = () => {
+      const duration = audio.duration;
 
-      audio.addEventListener('timeupdate', handleTimeUpdate);
-      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.addEventListener('ended', handleEnded);
-
-      // In case metadata is already loaded
-      if (audio.duration && isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
-        setAudioDuration(audio.duration);
-      } else {
-        setAudioDuration(speakingTime);
+      if (
+        Number.isFinite(duration) &&
+        duration > 0
+      ) {
+        setAudioDuration(duration);
       }
+    };
 
-      return () => {
-        audio.pause();
-        audio.removeEventListener('timeupdate', handleTimeUpdate);
-        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-        audio.removeEventListener('ended', handleEnded);
-        audioRef.current = null;
-      };
-    }
-  }, [audioUrl, speakingTime]);
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+
+    const handleEnded = () => {
+      setIsPlaying(false);
+      setCurrentTime(0);
+    };
+
+    audio.addEventListener("loadedmetadata", updateDuration);
+    audio.addEventListener("durationchange", updateDuration);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("ended", handleEnded);
+
+    // Force metadata loading
+    audio.load();
+
+    return () => {
+      audio.pause();
+
+      audio.removeEventListener("loadedmetadata", updateDuration);
+      audio.removeEventListener("durationchange", updateDuration);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("ended", handleEnded);
+
+      audioRef.current = null;
+    };
+  }, [audioUrl]);
 
   const handlePlayPause = () => {
     if (!audioRef.current) return;

@@ -10,7 +10,6 @@ interface TopicCardProps {
 
 export const TopicCard: React.FC<TopicCardProps> = ({
   topic,
-  isSpinning,
 }) => {
   if (!topic) {
     return (

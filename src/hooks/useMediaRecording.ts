@@ -7,7 +7,7 @@ interface MediaRecordingHook {
   audioBlob: Blob | null;
   duration: number; // elapsed recording time in seconds
   start: () => Promise<void>;
-  stop: () => void;
+  stop: () => Promise<Blob>;
   pause: () => void;
   resume: () => void;
   reset: () => void;
@@ -27,6 +27,7 @@ export function useMediaRecording(): MediaRecordingHook {
   const streamRef = useRef<MediaStream | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const stopResolverRef = useRef<((blob: Blob) => void) | null>(null);
 
   const start = useCallback(async () => {
     try {
@@ -61,6 +62,11 @@ export function useMediaRecording(): MediaRecordingHook {
         setAudioBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
         if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+        
+        if (stopResolverRef.current) {
+          stopResolverRef.current(blob);
+          stopResolverRef.current = null;
+        }
       };
 
       mediaRecorder.start(100); // Collect data every 100ms
@@ -78,12 +84,17 @@ export function useMediaRecording(): MediaRecordingHook {
   }, []);
 
   const stop = useCallback(() => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecording(false);
-    setIsPaused(false);
-    if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+    return new Promise<Blob>((resolve) => {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        stopResolverRef.current = resolve;
+        mediaRecorderRef.current.stop();
+      } else {
+        resolve(new Blob([], { type: 'audio/webm' }));
+      }
+      setIsRecording(false);
+      setIsPaused(false);
+      if (durationTimerRef.current) clearInterval(durationTimerRef.current);
+    });
   }, []);
 
   const pause = useCallback(() => {
