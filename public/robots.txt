@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ripplier.vercel.app/sitemap.xml

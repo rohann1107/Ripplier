@@ -6,6 +6,7 @@ import { TopicCard } from './components/TopicCard';
 import { TimerPage } from './components/TimerPage';
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 import { Footer } from './components/Footer';
+import { SEOContent } from './components/SEOContent';
 
 import { TOPICS } from './data/topics';
 import type { Topic, Category, UserSettings } from './types';
@@ -24,7 +25,7 @@ export const App: React.FC = () => {
 
   const [settings, setSettings] = useState<UserSettings>({
     soundEnabled: true,
-    volume: 0.6,
+    volume: 0.85,
     timerDuration: 60,
     difficulty: 'All',
     category: 'All',
@@ -206,21 +207,37 @@ export const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#090909] text-[#F5F2EC] flex flex-col justify-between ambient-glow">
-      <div>
-        <Header
-          soundEnabled={settings.soundEnabled}
-          onToggleSound={() => setSettings(prev => ({ ...prev, soundEnabled: !prev.soundEnabled }))}
-          onOpenShortcuts={() => setIsShortcutsOpen(true)}
-        />
 
-        <main className="w-full max-w-5xl mx-auto mt-5 px-4 py-3 flex flex-col items-center">
-          <CategoryFilter
-            selectedCategory={category}
-            onSelectCategory={handleSelectCategory}
-          />
+      <Header
+        soundEnabled={settings.soundEnabled}
+        onToggleSound={() =>
+          setSettings(prev => ({
+            ...prev,
+            soundEnabled: !prev.soundEnabled
+          }))
+        }
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
+      />
 
-          <div className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 my-4">
-            <div className="flex-1 w-full min-w-0 ">
+      <main className="w-full max-w-6xl mx-auto mt-5 px-4 py-3 flex flex-col items-center">
+
+        {/* Main Primary SEO H1 & Short Introduction */}
+        <div className="text-center max-w-6xl mx-auto mt-2 mb-6 px-4 animate-fade-in">
+
+          <h1 className="ripplier-gradient-title font-serif text-[2.7rem] md:text-7xl lg:text-8xl tracking-tight leading-[0.95] mb-2 max-sm:mb-8 max-w-[1100px] mx-auto text-center">            Ripplier-Random Topic Generator
+          </h1>
+
+          <div className="max-sm:mb-10 ">
+            <CategoryFilter
+              selectedCategory={category}
+              onSelectCategory={handleSelectCategory}
+            />
+          </div>
+
+          {/* TOPIC CARD */}
+          <div className="w-full max-w-5xl flex flex-col md:flex-row items-center justify-center gap-4 md:gap-6 my-4 max-sm:my-13">
+
+            <div className="flex-1 w-full min-w-0">
               <TopicCard
                 topic={selectedTopic}
                 isSpinning={isSpinning}
@@ -234,9 +251,12 @@ export const App: React.FC = () => {
                 disabled={filteredTopics.length === 0}
               />
             </div>
+
           </div>
 
-          <div className="flex items-center justify-center gap-3 sm:gap-3 my-1 flex-wrap w-full max-w-3xl">
+          {/* ACTION BUTTONS + DESCRIPTION */}
+          <div className="flex items-center justify-center gap-3 sm:gap-3 my-1 max-sm:my-4 flex-wrap w-full max-w-5xl">
+
             <button
               onClick={() => handleStartSpin()}
               disabled={isSpinning || filteredTopics.length === 0}
@@ -261,9 +281,23 @@ export const App: React.FC = () => {
                 <ArrowRight className="w-4 h-4 shrink-0" />
               </button>
             )}
+
+            <p className="text-base text-[#AAAAAA] font-sans leading-relaxed max-w-4xl mx-auto mt-24 sm:mt-19 text-center">
+              Ripplier is a premium random topic generator for speaking, impromptu
+              speech, and public speaking practice. Generate random topics to talk
+              about, practice spontaneous speaking, use research and speaking timers,
+              track WPM, detect filler words, transcribe your speech, and get
+              AI-powered coaching to become a clearer, more confident speaker.
+            </p>
+
           </div>
-        </main>
-      </div>
+
+          {/* Detailed SEO Sections & FAQ */}
+          <SEOContent />
+
+        </div>
+
+      </main>
 
       <Footer />
 
@@ -271,6 +305,7 @@ export const App: React.FC = () => {
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
       />
+
     </div>
   );
 };

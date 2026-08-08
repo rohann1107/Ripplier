@@ -689,6 +689,10 @@ Please evaluate ONLY these sections:
 - Only improve grammar, sentence structure, clarity, flow, and vocabulary.
 - Do not add new ideas or remove important points.
 
+The topic I was asked to speak about was:
+
+"${activeTopic.title}"
+
 Here is my speech transcript:
 
 "${sessionTranscript}"`;
@@ -711,6 +715,7 @@ Here is my speech transcript:
         onViewTranscript={() => setTimerView('transcript')}
         onPracticeAgain={onClose}
         onCopyTranscript={handleCopyPromptWithTranscript}
+        audioUrl={mediaRecording.audioUrl}
       />
     );
   }

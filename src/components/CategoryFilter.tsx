@@ -48,7 +48,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
       {/* Category Dropdown */}
       <div
         ref={dropdownRef}
-        className="relative w-full mt-5"
+        className="relative w-full mt-2"
       >
 
         <button
@@ -56,7 +56,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
             audioEngine.playClickSound();
             setDropdownOpen(!dropdownOpen);
           }}
-          className="w-full h-12 px-4 rounded-xl bg-[#111111] border border-white/[0.08] flex items-center justify-between text-[#F5F2EC] hover:border-[#C58A55]/40 transition-all"
+          className="w-full h-12 mt-2 sm:mt-8 px-4 rounded-xl bg-[#111111] border border-white/[0.08] flex items-center justify-between text-[#F5F2EC] hover:border-[#C58A55]/40 transition-all"
         >
 
           <span className="font-mono text-sm truncate">
@@ -122,7 +122,7 @@ export const CategoryFilter: React.FC<CategoryFilterProps> = ({
       </div>
 
       {/* Active Niche */}
-      <div className="flex items-center justify-center mt-2 text-xs font-mono text-[#AAAAAA]">
+      <div className="flex items-center justify-center mt-5 text-xs font-mono text-[#AAAAAA]">
 
         <Layers className="w-3.5 h-3.5 text-[#C58A55] mr-2" />
 

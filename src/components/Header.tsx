@@ -30,12 +30,12 @@ export const Header: React.FC<HeaderProps> = ({
         />
 
         <div>
-          <h1 className="font-serif text-2xl tracking-wide text-[#F5F2EC] flex items-center gap-2">
+          <span className="font-serif text-2xl tracking-wide text-[#F5F2EC] flex items-center gap-2">
             RIPPLIER
             <span className="text-[10px] font-mono tracking-widest px-1.5 py-0.5 rounded bg-white/[0.08] text-[#C58A55] uppercase">
-              1.7
+              1.8
             </span>
-          </h1>
+          </span>
 
           <p className="text-xs text-[#AAAAAA] tracking-wider uppercase font-mono">
             Ideas that keep rippling.

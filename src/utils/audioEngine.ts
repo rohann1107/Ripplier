@@ -3,7 +3,7 @@
 class MechanicalSoundEngine {
   private ctx: AudioContext | null = null;
   private soundEnabled: boolean = true;
-  private volume: number = 0.6;
+  private volume: number = 0.85;
 
   constructor() {
     // AudioContext will be initialized on first user gesture
@@ -132,7 +132,7 @@ class MechanicalSoundEngine {
     filter.type = 'bandpass';
     filter.frequency.setValueAtTime(1400, now);
 
-    const vol = Math.min(0.25, 0.08 + velocityRatio * 0.12) * this.volume;
+    const vol = Math.min(0.5, 0.16 + velocityRatio * 0.24) * this.volume;
     gain.gain.setValueAtTime(vol, now);
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.018);
 

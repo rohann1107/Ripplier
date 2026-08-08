@@ -7,46 +7,44 @@ interface TopicCardProps {
   topic: Topic | null;
   isSpinning?: boolean;
 }
+
 export const TopicCard: React.FC<TopicCardProps> = ({
   topic,
+  isSpinning,
 }) => {
-
   if (!topic) {
     return (
-      <div className="w-full max-w-3xl my-6 p-8 rounded-3xl bg-[#141414] border border-white/[0.1] text-center">
-        <p className="text-[#AAAAAA] font-serif text-xl">
-          Pull the lever or press <span className="text-[#C58A55] font-mono">[SPACE]</span> to draw your first thinking seed.
+      <div className="w-full">
+        <p className="text-m text-[#AAAAAA]">
+          Pull the lever or press [SPACE] to draw your first thinking seed.
         </p>
       </div>
     );
   }
 
-
-
   return (
-    <div className="w-full max-w-4xl mx-auto my-3 p-6 sm:p-8 rounded-3xl bg-[#141414] border border-white/[0.1] shadow-2xl relative overflow-hidden transition-all duration-300">
-      {/* Background Accent Glow */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-[#C58A55]/[0.03] rounded-full blur-3xl pointer-events-none" />
+    <div className="w-full">
 
       {/* Header Row: Category + Action Buttons */}
-      <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center justify-between gap-3 mb-3  flex-wrap">
+        <div className="flex items-center gap-2  flex-wrap">
+
           {/* Thinking Seed Badge */}
           <span className="px-3 py-1 rounded-full flex items-center justify-center bg-[#C58A55]/20 border border-[#C58A55]/50 text-[#C58A55]">
             <Sparkles className="w-4 h-4" />
           </span>
 
+          {/* Category */}
           <span className="text-xs font-mono tracking-wider uppercase px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[#AAAAAA]">
             {topic.category}
           </span>
+
         </div>
-
-
       </div>
 
-      {/* Animated Seed/Topic Display with Framer Motion */}
       {/* Animated Topic */}
-      <div className="min-h-[100px] flex items-center my-2 overflow-hidden relative">
+      <div className="min-h-[100px] flex items-center my-2 mt-12 overflow-hidden relative">
+
         <motion.h2
           key={topic.id}
           initial={{ opacity: 0, y: 11 }}
@@ -55,11 +53,24 @@ export const TopicCard: React.FC<TopicCardProps> = ({
             duration: 0.18,
             ease: "easeOut"
           }}
-          className="font-serif text-[#F5F2EC] leading-[1.15] tracking-tight break-words w-full text-[2.2rem] sm:text-[4.2rem] lg:text-[4.1rem] font-normal"
+          className="
+             font-serif
+            text-[#F5F2EC]
+            leading-[1.15]
+            tracking-tight
+            break-words
+            w-full
+            text-[3.5rem]
+            sm:text-[4rem]
+            lg:text-[6rem]
+            font-normal text-left
+          "
         >
           {topic.title}
         </motion.h2>
+
       </div>
-    </div >
+
+    </div>
   );
 };

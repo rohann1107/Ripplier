@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   Clock, FileText, Zap, Target,
-  Eye, RotateCcw, Copy, Check, MessageSquare
+  Eye, RotateCcw, Copy, Check, MessageSquare,
+  Play, Pause, Download
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { FillerWordCount } from '../types';
@@ -17,6 +18,7 @@ interface SessionSummaryProps {
   onViewTranscript: () => void;
   onPracticeAgain: () => void;
   onCopyTranscript: () => void;
+  audioUrl?: string | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -38,8 +40,138 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   onViewTranscript,
   onPracticeAgain,
   onCopyTranscript,
+  audioUrl,
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const [isPlaying, setIsPlaying] = React.useState(false);
+  const [currentTime, setCurrentTime] = React.useState(0);
+  const [audioDuration, setAudioDuration] = React.useState(speakingTime);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
+  const [fileName, setFileName] = React.useState('');
+  const [speechNumber, setSpeechNumber] = React.useState(1);
+  const speechNumberInitialized = React.useRef(false);
+
+
+  React.useEffect(() => {
+    // Prevent React StrictMode from generating the number twice
+    if (speechNumberInitialized.current) return;
+
+    speechNumberInitialized.current = true;
+
+    const storedNumber = Number(
+      localStorage.getItem('ripplier-speech-number') || '0'
+    );
+
+    const nextNumber = storedNumber + 1;
+
+    localStorage.setItem(
+      'ripplier-speech-number',
+      String(nextNumber)
+    );
+
+    setSpeechNumber(nextNumber);
+
+    const safeTopicTitle = (topicTitle || 'Untitled Topic')
+      .replace(/[-–—]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    setFileName(
+      `Ripplier-${safeTopicTitle}-${String(nextNumber).padStart(2, '0')}`
+    );
+  }, [topicTitle]);
+  // Initialize and clean up audio
+  React.useEffect(() => {
+    if (audioUrl) {
+      const audio = new Audio(audioUrl);
+      audioRef.current = audio;
+
+      const handleTimeUpdate = () => {
+        setCurrentTime(audio.currentTime);
+      };
+
+      const handleLoadedMetadata = () => {
+        if (isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
+          setAudioDuration(audio.duration);
+        } else {
+          setAudioDuration(speakingTime);
+        }
+      };
+
+      const handleEnded = () => {
+        setIsPlaying(false);
+        setCurrentTime(0);
+      };
+
+      audio.addEventListener('timeupdate', handleTimeUpdate);
+      audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.addEventListener('ended', handleEnded);
+
+      // In case metadata is already loaded
+      if (audio.duration && isFinite(audio.duration) && !isNaN(audio.duration) && audio.duration > 0) {
+        setAudioDuration(audio.duration);
+      } else {
+        setAudioDuration(speakingTime);
+      }
+
+      return () => {
+        audio.pause();
+        audio.removeEventListener('timeupdate', handleTimeUpdate);
+        audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+        audio.removeEventListener('ended', handleEnded);
+        audioRef.current = null;
+      };
+    }
+  }, [audioUrl, speakingTime]);
+
+  const handlePlayPause = () => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => {
+        setIsPlaying(true);
+      }).catch(err => {
+        console.error("Audio playback failed", err);
+      });
+    }
+  };
+
+  const formatTime = (time: number) => {
+    if (isNaN(time) || !isFinite(time)) return '0:00';
+    const mins = Math.floor(time / 60);
+    const secs = Math.floor(time % 60);
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!audioRef.current) return;
+    const newTime = parseFloat(e.target.value);
+    audioRef.current.currentTime = newTime;
+    setCurrentTime(newTime);
+  };
+
+  const handleDownload = () => {
+    if (!audioUrl) return;
+
+    // Remove characters that are invalid in Windows/macOS filenames
+    const sanitizedFileName = fileName
+      .trim()
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+      .replace(/\s+/g, ' ');
+
+    if (!sanitizedFileName) return;
+
+    const link = document.createElement('a');
+
+    link.href = audioUrl;
+    link.download = `${sanitizedFileName}.mp3`;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Celebration confetti on mount
   useEffect(() => {
@@ -160,6 +292,122 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
           </div>
         </motion.div>
       </div>
+
+      {/* Audio Player Card */}
+      {audioUrl && (
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7, duration: 0.35 }}
+          className="w-full p-4 rounded-2xl bg-[#141414] border border-white/[0.08] flex flex-col sm:flex-row items-center gap-4 shadow-xl"
+        >
+          {/* Play/Pause Button */}
+          <button
+            onClick={handlePlayPause}
+            className="p-3 rounded-full bg-[#C58A55] text-[#090909] hover:bg-[#D99C66] transition-all cursor-pointer flex items-center justify-center shrink-0 shadow-glow-gold"
+            aria-label={isPlaying ? "Pause Recording" : "Play Recording"}
+          >
+            {isPlaying ? (
+              <Pause className="w-4 h-4 fill-current" />
+            ) : (
+              <Play className="w-4 h-4 fill-current ml-0.5" />
+            )}
+          </button>
+
+          {/* Progress Slider and Timing */}
+          <div className="flex-1 w-full flex items-center gap-3">
+            <span className="text-[11px] font-mono text-[#666666]">
+              {formatTime(currentTime)}
+            </span>
+            <input
+              type="range"
+              min="0"
+              max={audioDuration && isFinite(audioDuration) ? audioDuration : speakingTime}
+              value={currentTime}
+              onChange={handleProgressChange}
+              className="flex-1 h-1 rounded-lg bg-white/10 appearance-none cursor-pointer accent-[#C58A55] outline-none"
+            />
+            <span className="text-[11px] font-mono text-[#666666]">
+              {formatTime(audioDuration)}
+            </span>
+          </div>
+
+          {/* Download Button */}
+          {/* Filename + Download */}
+          <div className="w-full sm:w-auto flex flex-col gap-2 shrink-0">
+
+            <label className="text-[9px] font-mono uppercase tracking-widest text-[#666666]">
+              File name
+            </label>
+
+            <div className="flex items-center gap-2">
+
+              <input
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleDownload();
+                  }
+                }}
+                spellCheck={false}
+                className="
+        w-full sm:w-72
+        px-3 py-2.5
+        rounded-xl
+        bg-[#0F0F0F]
+        border border-white/[0.08]
+        focus:border-[#C58A55]/50
+        outline-none
+        text-xs
+        font-mono
+        text-[#F5F2EC]
+        placeholder:text-[#555555]
+        transition-all
+      "
+                placeholder="Enter file name..."
+                aria-label="Audio file name"
+              />
+
+              <button
+                onClick={handleDownload}
+                disabled={!fileName.trim()}
+                className="
+        px-4 py-2.5
+        rounded-xl
+        bg-[#181818]
+        border border-white/[0.08]
+        hover:border-[#C58A55]/40
+        text-[#F5F2EC]
+        hover:text-[#C58A55]
+        disabled:opacity-40
+        disabled:cursor-not-allowed
+        transition-all
+        text-xs
+        font-mono
+        uppercase
+        tracking-wider
+        flex items-center
+        justify-center
+        gap-2
+        cursor-pointer
+        shrink-0
+      "
+              >
+                <Download className="w-4 h-4" />
+
+              </button>
+
+            </div>
+
+            <span className="text-[9px] font-mono text-[#555555]">
+              .mp3 will be added automatically
+            </span>
+
+          </div>
+        </motion.div>
+      )}
 
       {/* Action Buttons */}
       <motion.div
