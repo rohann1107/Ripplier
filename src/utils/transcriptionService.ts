@@ -115,7 +115,7 @@ export class TranscriptionService {
     this.notify({ status: 'loading', message: 'Preparing offline transcription…' });
 
     this.initPromise = (async () => {
-      const modelName = 'onnx-community/whisper-tiny.en';
+      const modelName = 'onnx-community/whisper-base.en';
       let hasWebGPU = false;
 
       // 1. Detect if WebGPU is generally supported in the environment

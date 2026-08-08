@@ -956,7 +956,12 @@ Here is my speech transcript:
             <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
               <div className="w-2 h-2 rounded-full bg-[#E05D5D] animate-pulse" />
               Recording...
+              <div className="flex items-center gap-2 text-xs font-mono text-white">
+                <div className="w-2 h-2 rounded-full bg-[#7CC8F3] animate-pulse" />
+                Live Transcripting... </div>
+
             </div>
+
           )}
           {mediaRecording.isPaused && (
             <div className="flex items-center gap-2 text-xs font-mono text-[#E0A85D]">
