@@ -806,6 +806,7 @@ Here is my speech transcript:
         onPracticeAgain={onClose}
         onCopyTranscript={handleCopyPromptWithTranscript}
         audioUrl={mediaRecording.audioUrl}
+        audioBlob={mediaRecording.audioBlob}
       />
     );
   }

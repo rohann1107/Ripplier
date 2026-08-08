@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import type { FillerWordCount } from '../types';
+import { convertWebMToMP3 } from '../utils/mp3Converter';
 
 interface SessionSummaryProps {
   speakingTime: number; // seconds
@@ -19,6 +20,7 @@ interface SessionSummaryProps {
   onPracticeAgain: () => void;
   onCopyTranscript: () => void;
   audioUrl?: string | null;
+  audioBlob?: Blob | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -41,9 +43,12 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   onPracticeAgain,
   onCopyTranscript,
   audioUrl,
+  audioBlob,
 }) => {
   const [copied, setCopied] = React.useState(false);
   const [isPlaying, setIsPlaying] = React.useState(false);
+  const [isConverting, setIsConverting] = React.useState(false);
+  const [downloadError, setDownloadError] = React.useState<string | null>(null);
   const [currentTime, setCurrentTime] = React.useState(0);
   const [audioDuration, setAudioDuration] = React.useState(speakingTime);
   const audioRef = React.useRef<HTMLAudioElement | null>(null);
@@ -155,10 +160,9 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
     setCurrentTime(newTime);
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!audioUrl) return;
 
-    // Remove characters that are invalid in Windows/macOS filenames
     const sanitizedFileName = fileName
       .trim()
       .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
@@ -166,14 +170,42 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
 
     if (!sanitizedFileName) return;
 
-    const link = document.createElement('a');
+    setIsConverting(true);
+    setDownloadError(null);
 
-    link.href = audioUrl;
-    link.download = `${sanitizedFileName}.mp3`;
+    try {
+      let blob = audioBlob;
+      if (!blob) {
+        console.warn('audioBlob prop not provided to SessionSummary, fetching from audioUrl...');
+        const response = await fetch(audioUrl);
+        blob = await response.blob();
+      }
 
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      if (!blob) {
+        throw new Error('Recording audio data is unavailable.');
+      }
+
+      // Convert WebM to MP3
+      const mp3Blob = await convertWebMToMP3(blob);
+
+      // Trigger download of the genuine MP3 blob
+      const mp3Url = URL.createObjectURL(mp3Blob);
+      const link = document.createElement('a');
+      link.href = mp3Url;
+      link.download = `${sanitizedFileName}.mp3`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Revoke temporary object URL
+      URL.revokeObjectURL(mp3Url);
+    } catch (err: any) {
+      console.error('MP3 conversion failed:', err);
+      setDownloadError(err.message || 'Conversion failed. Please try again.');
+    } finally {
+      setIsConverting(false);
+    }
   };
 
   // Celebration confetti on mount
@@ -349,6 +381,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
                 type="text"
                 value={fileName}
                 onChange={(e) => setFileName(e.target.value)}
+                disabled={isConverting}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleDownload();
@@ -375,7 +408,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
 
               <button
                 onClick={handleDownload}
-                disabled={!fileName.trim()}
+                disabled={!fileName.trim() || isConverting}
                 className="
         px-4 py-2.5
         rounded-xl
@@ -398,14 +431,23 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
         shrink-0
       "
               >
-                <Download className="w-4 h-4" />
-
+                {isConverting ? (
+                  <span className="w-4 h-4 rounded-full border border-white/20 border-t-[#C58A55] animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
               </button>
 
             </div>
 
             <span className="text-[9px] font-mono text-[#555555]">
-              .mp3 will be added automatically
+              {isConverting ? (
+                <span className="text-[#C58A55] animate-pulse">Converting WebM to genuine MP3...</span>
+              ) : downloadError ? (
+                <span className="text-[#E05D5D]">{downloadError}</span>
+              ) : (
+                '.mp3 will be added automatically'
+              )}
             </span>
 
           </div>
