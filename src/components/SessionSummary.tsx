@@ -21,6 +21,7 @@ interface SessionSummaryProps {
   onCopyTranscript: () => void;
   audioUrl?: string | null;
   audioBlob?: Blob | null;
+  conversionPromise?: Promise<Blob> | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -44,6 +45,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   onCopyTranscript,
   audioUrl,
   audioBlob,
+  conversionPromise,
 }) => {
   const [copied, setCopied] = React.useState(false);
   const [isPlaying, setIsPlaying] = React.useState(false);
@@ -174,19 +176,26 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
     setDownloadError(null);
 
     try {
-      let blob = audioBlob;
-      if (!blob) {
-        console.warn('audioBlob prop not provided to SessionSummary, fetching from audioUrl...');
-        const response = await fetch(audioUrl);
-        blob = await response.blob();
-      }
+      let mp3Blob: Blob;
 
-      if (!blob) {
-        throw new Error('Recording audio data is unavailable.');
-      }
+      if (conversionPromise) {
+        console.log("Awaiting background MP3 conversion promise...");
+        mp3Blob = await conversionPromise;
+      } else {
+        let blob = audioBlob;
+        if (!blob) {
+          console.warn('audioBlob prop not provided to SessionSummary, fetching from audioUrl...');
+          const response = await fetch(audioUrl);
+          blob = await response.blob();
+        }
 
-      // Convert WebM to MP3
-      const mp3Blob = await convertWebMToMP3(blob);
+        if (!blob) {
+          throw new Error('Recording audio data is unavailable.');
+        }
+
+        // Convert WebM to MP3
+        mp3Blob = await convertWebMToMP3(blob);
+      }
 
       // Trigger download of the genuine MP3 blob
       const mp3Url = URL.createObjectURL(mp3Blob);

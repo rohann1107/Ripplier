@@ -7,6 +7,7 @@ import { saveSession, generateSessionId, calculateWPM, countWords } from '../uti
 import { SessionSummary } from './SessionSummary';
 import { TranscriptView } from './TranscriptView';
 import { transcriptionService } from '../utils/transcriptionService';
+import { convertWebMToMP3 } from '../utils/mp3Converter';
 
 interface TimerPageProps {
   topic: Topic;
@@ -139,6 +140,8 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   const [transcribePercent, setTranscribePercent] = useState(0);
   const [isFinishing, setIsFinishing] = useState(false);
   const recordedBlobRef = useRef<Blob | null>(null);
+  const [liveTranscript, setLiveTranscript] = useState("");
+  const conversionPromiseRef = useRef<Promise<Blob> | null>(null);
 
   // Smooth asymptotic percentage animation
   useEffect(() => {
@@ -168,6 +171,38 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       if (animId) cancelAnimationFrame(animId);
     };
   }, [isTranscribing, isModelLoading, isFinishing]);
+
+  // Live transcription interval during active speech
+  useEffect(() => {
+    if (phase !== 'speech' || !isRunning || !mediaRecording.isRecording) {
+      return;
+    }
+
+    let isLiveProcessing = false;
+
+    const intervalId = setInterval(async () => {
+      if (isLiveProcessing) return;
+      if (!transcriptionService.isReady()) return;
+
+      const pcmData = mediaRecording.getLivePCM();
+      if (!pcmData || pcmData.samples.length < pcmData.sampleRate * 2.5) return; // Wait for 2.5 seconds of audio
+
+      isLiveProcessing = true;
+      try {
+        console.log("Running live transcription on raw PCM...");
+        const partialText = await transcriptionService.transcribeRaw(pcmData.samples, pcmData.sampleRate, false);
+        if (partialText) {
+          setLiveTranscript(partialText);
+        }
+      } catch (err) {
+        console.warn("Live transcription chunk failed:", err);
+      } finally {
+        isLiveProcessing = false;
+      }
+    }, 4000);
+
+    return () => clearInterval(intervalId);
+  }, [phase, isRunning, mediaRecording]);
 
 
 
@@ -223,7 +258,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     try {
       mediaRecording.reset();
       recordedBlobRef.current = null;
+      conversionPromiseRef.current = null;
       setTranscriptionError(null);
+      setLiveTranscript("");
 
       totalPausedMsRef.current = 0;
       pauseStartedRef.current = null;
@@ -270,6 +307,8 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
       mediaRecording.reset();
       recordedBlobRef.current = null;
+      conversionPromiseRef.current = null;
+      setLiveTranscript("");
 
       setSpeechStartTime(null);
       setTotalSpeechDuration(0);
@@ -284,6 +323,8 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
     mediaRecording.reset();
     recordedBlobRef.current = null;
+    conversionPromiseRef.current = null;
+    setLiveTranscript("");
   }, [speechSecs, mediaRecording]);
 
   // Start Speech: starts both the countdown timer and the microphone recording/transcription
@@ -394,7 +435,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
       mediaRecording.reset();
       recordedBlobRef.current = null;
+      conversionPromiseRef.current = null;
       setTranscriptionError(null);
+      setLiveTranscript("");
 
       setSpeechStartTime(null);
       setTotalSpeechDuration(0);
@@ -436,7 +479,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
       // Smoothly animate progress bar to 100% before transitioning
       setIsFinishing(true);
-      
+
       await new Promise<void>((resolve) => {
         let startPercent = 0;
         setTranscribePercent((prev) => {
@@ -452,7 +495,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
           const progress = Math.min(1, elapsed / durationMs);
           const eased = 1 - Math.pow(1 - progress, 3);
           const current = startPercent + (100 - startPercent) * eased;
-          
+
           setTranscribePercent(Math.floor(current));
 
           if (progress < 1) {
@@ -529,6 +572,13 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
     const blob = await mediaRecording.stop();
     recordedBlobRef.current = blob;
+
+    // Start background MP3 conversion immediately!
+    console.log("Starting background WebM to MP3 conversion...");
+    conversionPromiseRef.current = convertWebMToMP3(blob).catch(err => {
+      console.error("Background MP3 conversion failed:", err);
+      throw err;
+    });
 
     const duration = speechStartTime
       ? Math.max(
@@ -807,6 +857,7 @@ Here is my speech transcript:
         onCopyTranscript={handleCopyPromptWithTranscript}
         audioUrl={mediaRecording.audioUrl}
         audioBlob={mediaRecording.audioBlob}
+        conversionPromise={conversionPromiseRef.current}
       />
     );
   }
@@ -950,6 +1001,16 @@ Here is my speech transcript:
               Paused
             </div>
           )}
+
+          {mediaRecording.isRecording && (
+            <div className="w-full mt-2 space-y-2 select-text animate-fade-in animate-pulse-subtle">
+              <div className="flex mb-2 items-center gap-2 text-xs font-mono text-[#AAAAAA] tracking-wider justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7CC8F3] animate-pulse" />
+                Live Transcripting...
+              </div>
+
+            </div>
+          )}
         </div>
       )}
 
@@ -1018,7 +1079,7 @@ Here is my speech transcript:
           <div className="w-full max-w-md p-8 rounded-3xl bg-[#111111] border border-white/[0.08] shadow-[0_0_50px_-12px_rgba(197,138,85,0.15)] relative overflow-hidden animate-scale-up">
             {/* Ambient gold glow */}
             <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#C58A55]/[0.08] rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
-            
+
             <div className="relative z-10 flex flex-col items-center gap-8 py-4">
               {/* Header */}
               <div className="space-y-1">
@@ -1040,7 +1101,7 @@ Here is my speech transcript:
               {/* Premium Progress Bar */}
               <div className="w-full px-4">
                 <div className="w-full h-[3px] bg-white/[0.06] rounded-full overflow-hidden relative">
-                  <div 
+                  <div
                     className="h-full bg-gradient-to-r from-[#C58A55] to-[#D4995F] shadow-[0_0_8px_#C58A55] rounded-full transition-all duration-300 ease-out"
                     style={{ width: isModelLoading ? '15%' : `${transcribePercent}%` }}
                   />
@@ -1050,15 +1111,15 @@ Here is my speech transcript:
               {/* Sub-status Message */}
               <div className="min-h-[20px]">
                 <p className="text-xs font-mono text-[#AAAAAA] uppercase tracking-widest animate-pulse">
-                  {isModelLoading 
-                    ? (loadingMessage || 'Configuring local speech engine...') 
+                  {isModelLoading
+                    ? (loadingMessage || 'Configuring local speech engine...')
                     : (isFinishing ? 'Transcript Ready' : 'Analyzing your recording...')}
                 </p>
               </div>
 
               {/* Privacy/Offline Footer Notice */}
               <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs mt-2">
-                Whisper is running entirely offline in your browser. Your recording never leaves your device.
+                Please wait while we transcribe your speech…
               </p>
             </div>
           </div>
