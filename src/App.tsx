@@ -16,6 +16,7 @@ import { Play, ArrowRight } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<'machine' | 'timer'>('machine');
+  const [toast, setToast] = useState<string | null>(null);
 
   const [category, setCategory] = useState<Category | 'All'>('All');
 
@@ -36,6 +37,57 @@ export const App: React.FC = () => {
 
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const animFrameRef = useRef<number | null>(null);
+
+  // Sync Home Page history states and handle back button when on Home
+  useEffect(() => {
+    if (currentView !== 'machine') return;
+
+    // Initialize/sync history state for home
+    if (!window.history.state || window.history.state.page !== 'home-active') {
+      window.history.replaceState({ page: 'home' }, '', '');
+      window.history.pushState({ page: 'home-active' }, '', '');
+    }
+
+    let doubleBackTimeout: ReturnType<typeof setTimeout> | null = null;
+    let doubleBackTriggered = false;
+
+    const handlePopState = () => {
+      // Check scroll position
+      const isScrolled = window.scrollY > 0 || document.documentElement.scrollTop > 0;
+      if (isScrolled) {
+        // Smoothly scroll to top
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Push state back to stay on page
+        window.history.pushState({ page: 'home-active' }, '', '');
+        return;
+      }
+
+      // Already at top
+      if (!doubleBackTriggered) {
+        doubleBackTriggered = true;
+        setToast("Press back again to exit");
+
+        doubleBackTimeout = setTimeout(() => {
+          doubleBackTriggered = false;
+          setToast(null);
+        }, 2000);
+
+        // Push state back to stay on page
+        window.history.pushState({ page: 'home-active' }, '', '');
+      } else {
+        if (doubleBackTimeout) clearTimeout(doubleBackTimeout);
+        setToast(null);
+        // Clear active state and go back in browser history (exiting the app)
+        window.history.go(-1);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      if (doubleBackTimeout) clearTimeout(doubleBackTimeout);
+    };
+  }, [currentView]);
 
   useEffect(() => {
     audioEngine.setSoundEnabled(settings.soundEnabled);
@@ -324,6 +376,12 @@ export const App: React.FC = () => {
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
       />
+
+      {toast && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-full bg-[#141414] border border-[#C58A55]/30 text-[#F5F2EC] font-mono text-xs uppercase tracking-widest shadow-[0_0_20px_rgba(197,138,85,0.15)] pointer-events-none animate-fadeIn">
+          {toast}
+        </div>
+      )}
 
     </div>
   );

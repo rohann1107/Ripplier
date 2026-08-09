@@ -126,6 +126,24 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   );
 
   const [isRunning, setIsRunning] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const pendingExitActionRef = useRef<(() => void) | null>(null);
+  const isProgrammaticBackRef = useRef(false);
+
+  // Sync TimerPage history states on mount
+  useEffect(() => {
+    window.history.pushState({ page: 'research-timer' }, '', '');
+    if (initialMode === 'speech') {
+      window.history.pushState({ page: 'speech-timer' }, '', '');
+    }
+  }, [initialMode]);
+
+  // Sync phase change with history push
+  useEffect(() => {
+    if (phase === 'speech' && initialMode !== 'speech') {
+      window.history.pushState({ page: 'speech-timer' }, '', '');
+    }
+  }, [phase, initialMode]);
 
   const mediaRecording = useMediaRecording();
 
@@ -411,72 +429,80 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       setTotalSpeechDuration(0);
     }
   };
-  const performTranscription = useCallback(async (audioBlob: Blob, duration: number) => {
-    setIsTranscribing(true);
-    setTranscriptionError(null);
-    setIsFinishing(false);
-    setTranscribePercent(0);
-
-    const modelReady = transcriptionService.isReady();
-    setIsModelLoading(!modelReady);
-    if (!modelReady) {
-      setLoadingMessage("Preparing transcription…");
-    } else {
-      setLoadingMessage("");
+  const performTranscription = useCallback(async (audioBlob: Blob, duration: number, skipSummary?: boolean) => {
+    if (!skipSummary) {
+      setIsTranscribing(true);
+      setTranscriptionError(null);
+      setIsFinishing(false);
+      setTranscribePercent(0);
     }
 
-    transcriptionService.setProgressCallback((progress) => {
-      if (progress.status === 'loading') {
-        setIsModelLoading(true);
-        setLoadingMessage(progress.message);
-      } else if (progress.status === 'ready') {
-        setIsModelLoading(false);
-        setLoadingMessage('');
-      } else if (progress.status === 'transcribing') {
-        setIsModelLoading(false);
-        setLoadingMessage(progress.message);
-      } else if (progress.status === 'error') {
-        setIsModelLoading(false);
-        setIsTranscribing(false);
-        setTranscriptionError(progress.message);
+    const modelReady = transcriptionService.isReady();
+    if (!skipSummary) {
+      setIsModelLoading(!modelReady);
+      if (!modelReady) {
+        setLoadingMessage("Preparing transcription…");
+      } else {
+        setLoadingMessage("");
       }
-    });
+    }
+
+    if (!skipSummary) {
+      transcriptionService.setProgressCallback((progress) => {
+        if (progress.status === 'loading') {
+          setIsModelLoading(true);
+          setLoadingMessage(progress.message);
+        } else if (progress.status === 'ready') {
+          setIsModelLoading(false);
+          setLoadingMessage('');
+        } else if (progress.status === 'transcribing') {
+          setIsModelLoading(false);
+          setLoadingMessage(progress.message);
+        } else if (progress.status === 'error') {
+          setIsModelLoading(false);
+          setIsTranscribing(false);
+          setTranscriptionError(progress.message);
+        }
+      });
+    }
 
     try {
       const text = await transcriptionService.transcribe(audioBlob);
 
-      // Smoothly animate progress bar to 100% before transitioning
-      setIsFinishing(true);
+      if (!skipSummary) {
+        // Smoothly animate progress bar to 100% before transitioning
+        setIsFinishing(true);
 
-      await new Promise<void>((resolve) => {
-        let startPercent = 0;
-        setTranscribePercent((prev) => {
-          startPercent = prev;
-          return prev;
+        await new Promise<void>((resolve) => {
+          let startPercent = 0;
+          setTranscribePercent((prev) => {
+            startPercent = prev;
+            return prev;
+          });
+
+          const durationMs = 350; // Animate to 100% in 350ms
+          const startTime = performance.now();
+
+          const anim = (now: number) => {
+            const elapsed = now - startTime;
+            const progress = Math.min(1, elapsed / durationMs);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = startPercent + (100 - startPercent) * eased;
+
+            setTranscribePercent(Math.floor(current));
+
+            if (progress < 1) {
+              requestAnimationFrame(anim);
+            } else {
+              setTranscribePercent(100);
+              setTimeout(resolve, 200); // Hold 100% momentarily for luxury feeling
+            }
+          };
+          requestAnimationFrame(anim);
         });
 
-        const durationMs = 350; // Animate to 100% in 350ms
-        const startTime = performance.now();
-
-        const anim = (now: number) => {
-          const elapsed = now - startTime;
-          const progress = Math.min(1, elapsed / durationMs);
-          const eased = 1 - Math.pow(1 - progress, 3);
-          const current = startPercent + (100 - startPercent) * eased;
-
-          setTranscribePercent(Math.floor(current));
-
-          if (progress < 1) {
-            requestAnimationFrame(anim);
-          } else {
-            setTranscribePercent(100);
-            setTimeout(resolve, 200); // Hold 100% momentarily for luxury feeling
-          }
-        };
-        requestAnimationFrame(anim);
-      });
-
-      setSessionTranscript(text);
+        setSessionTranscript(text);
+      }
 
       const lowerTranscript = text.toLowerCase();
       const fillerCounts: FillerWordCount[] = [];
@@ -493,7 +519,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
         }
       }
 
-      setSessionFillerWords(fillerCounts);
+      if (!skipSummary) {
+        setSessionFillerWords(fillerCounts);
+      }
       const wordCount = countWords(text);
       const wpm = calculateWPM(text, duration);
 
@@ -509,13 +537,17 @@ export const TimerPage: React.FC<TimerPageProps> = ({
         fillerWords: fillerCounts,
       });
 
-      setTimerView("summary");
+      if (!skipSummary) {
+        setTimerView("summary");
+      }
     } catch (err) {
       console.error('Local transcription failed:', err);
       // Stay on current page, error state handled via overlay
     } finally {
-      setIsTranscribing(false);
-      setIsFinishing(false);
+      if (!skipSummary) {
+        setIsTranscribing(false);
+        setIsFinishing(false);
+      }
     }
   }, [activeTopic]);
 
@@ -525,7 +557,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     }
   };
 
-  const handleDoneSpeaking = useCallback(async () => {
+  const handleDoneSpeaking = useCallback(async (options?: { skipSummary?: boolean }) => {
     audioEngine.playClickSound();
     setIsRunning(false);
 
@@ -563,10 +595,12 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       : speechSecs - timeLeft;
 
     console.log(`[Audio] Recording timer duration: ${duration} seconds`);
-    setTotalSpeechDuration(duration);
+    if (!options?.skipSummary) {
+      setTotalSpeechDuration(duration);
+    }
 
     // Trigger local Whisper transcription
-    await performTranscription(blob, duration);
+    await performTranscription(blob, duration, options?.skipSummary);
 
   }, [
     speechSecs,
@@ -575,6 +609,77 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     mediaRecording.stop,
     performTranscription,
   ]);
+
+  // Listen for back button / popstate events to implement smart back behavior
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      event.preventDefault();
+
+      if (isProgrammaticBackRef.current) {
+        isProgrammaticBackRef.current = false;
+        if (pendingExitActionRef.current) {
+          const action = pendingExitActionRef.current;
+          pendingExitActionRef.current = null;
+          action();
+        }
+        return;
+      }
+
+      if (showExitConfirm) {
+        window.history.pushState({ page: phase === 'speech' ? 'speech-timer' : 'research-timer' }, '', '');
+        return;
+      }
+
+      if (phase === 'speech') {
+        const isTimerActive = isRunning || mediaRecording.isRecording || mediaRecording.isPaused;
+
+        if (isTimerActive && timerView === 'timer') {
+          setShowExitConfirm(true);
+          pendingExitActionRef.current = () => {
+            handleDoneSpeaking({ skipSummary: true });
+            setPhase('research');
+            setTimeLeft(researchSecs);
+            setIsRunning(false);
+            setTimerView('timer');
+          };
+          window.history.pushState({ page: 'speech-timer' }, '', '');
+        } else {
+          setPhase('research');
+          setTimeLeft(researchSecs);
+          setIsRunning(false);
+          setTimerView('timer');
+        }
+      } else if (phase === 'research') {
+        const isTimerActive = isRunning || timeLeft < researchSecs;
+
+        if (isTimerActive && timerView === 'timer') {
+          setShowExitConfirm(true);
+          pendingExitActionRef.current = () => {
+            onClose();
+          };
+          window.history.pushState({ page: 'research-timer' }, '', '');
+        } else {
+          onClose();
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [phase, isRunning, timeLeft, researchSecs, mediaRecording.isRecording, mediaRecording.isPaused, handleDoneSpeaking, onClose, timerView, showExitConfirm]);
+
+  const handleClose = () => {
+    audioEngine.playClickSound();
+    if (timerView !== 'timer') {
+      isProgrammaticBackRef.current = true;
+      window.history.go(-2);
+      onClose();
+    } else {
+      window.history.back();
+    }
+  };
 
   useEffect(() => {
     return () => {
@@ -825,7 +930,12 @@ Here is my speech transcript:
         topicTitle={activeTopic.title}
         fillerWords={sessionFillerWords}
         onViewTranscript={() => setTimerView('transcript')}
-        onPracticeAgain={onClose}
+        onPracticeAgain={() => {
+          audioEngine.playClickSound();
+          isProgrammaticBackRef.current = true;
+          window.history.go(-2);
+          onClose();
+        }}
         onCopyTranscript={handleCopyPromptWithTranscript}
         audioUrl={mediaRecording.audioUrl}
         audioBlob={mediaRecording.audioBlob}
@@ -859,13 +969,7 @@ Here is my speech transcript:
         </div>
 
         <button
-          onClick={() => {
-            audioEngine.playClickSound();
-            if (phase === 'speech') {
-              mediaRecording.stop();
-            }
-            onClose();
-          }}
+          onClick={handleClose}
           className="p-2.5 rounded-full bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer transition-all flex items-center gap-2 text-xs font-mono"
         >
           <X className="w-4 h-4" /> Close
@@ -1021,7 +1125,7 @@ Here is my speech transcript:
                 </button>
 
                 <button
-                  onClick={handleDoneSpeaking}
+                  onClick={() => handleDoneSpeaking()}
                   className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
                 >
                   <Square className="w-4 h-4 fill-current" />
@@ -1131,6 +1235,38 @@ Here is my speech transcript:
               <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs">
                 Your audio recording remains fully available for playback and download.
               </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExitConfirm && (
+        <div className="fixed inset-0 z-[110] bg-[#090909]/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md p-6 sm:p-8 rounded-2xl bg-[#141414] border border-white/[0.1] shadow-2xl relative space-y-6 text-center animate-fadeIn">
+            <h3 className="font-serif text-2xl text-[#F5F2EC] leading-snug">
+              Do you want to end this session here?
+            </h3>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  audioEngine.playClickSound();
+                  setShowExitConfirm(false);
+                }}
+                className="px-5 py-2.5 rounded-xl bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer font-mono text-xs uppercase tracking-wider transition-all animate-fadeIn"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  audioEngine.playClickSound();
+                  setShowExitConfirm(false);
+                  isProgrammaticBackRef.current = true;
+                  window.history.back();
+                }}
+                className="px-5 py-2.5 rounded-xl bg-[#E05D5D] text-white hover:opacity-90 cursor-pointer font-mono text-xs uppercase tracking-wider transition-all animate-fadeIn"
+              >
+                End Session
+              </button>
             </div>
           </div>
         </div>
