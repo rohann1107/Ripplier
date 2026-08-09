@@ -22,6 +22,7 @@ interface SessionSummaryProps {
   audioUrl?: string | null;
   audioBlob?: Blob | null;
   conversionPromise?: Promise<Blob> | null;
+  actualAudioDuration?: number | null;
 }
 
 function formatDuration(seconds: number): string {
@@ -46,6 +47,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   audioUrl,
   audioBlob,
   conversionPromise,
+  actualAudioDuration,
 }) => {
   const [copied, setCopied] = React.useState(false);
   const [isPlaying, setIsPlaying] = React.useState(false);
@@ -57,6 +59,16 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   const [fileName, setFileName] = React.useState('');
   const speechNumberInitialized = React.useRef(false);
 
+  // Sync actualAudioDuration immediately when it changes
+  React.useEffect(() => {
+    if (
+      actualAudioDuration &&
+      Number.isFinite(actualAudioDuration) &&
+      actualAudioDuration > 0
+    ) {
+      setAudioDuration(actualAudioDuration);
+    }
+  }, [actualAudioDuration]);
 
   React.useEffect(() => {
     // Prevent React StrictMode from generating the number twice
@@ -97,7 +109,14 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
     const updateDuration = () => {
       const duration = audio.duration;
 
+      console.log(
+        '🎧 ACTUAL RECORDED AUDIO DURATION:',
+        duration,
+        'seconds'
+      );
+
       if (
+        (!actualAudioDuration || actualAudioDuration <= 0) &&
         Number.isFinite(duration) &&
         duration > 0
       ) {
@@ -132,7 +151,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
 
       audioRef.current = null;
     };
-  }, [audioUrl]);
+  }, [audioUrl, actualAudioDuration]);
 
   const handlePlayPause = () => {
     if (!audioRef.current) return;
@@ -194,7 +213,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
         }
 
         // Convert WebM to MP3
-        mp3Blob = await convertWebMToMP3(blob);
+        mp3Blob = await convertWebMToMP3(blob, audioDuration);
       }
 
       // Trigger download of the genuine MP3 blob

@@ -3,13 +3,13 @@ import { Mp3Encoder } from '@breezystack/lamejs';
 /**
  * Converts a WebM/Opus audio Blob into a real MP3 Blob client-side.
  */
-export async function convertWebMToMP3(audioBlob: Blob): Promise<Blob> {
+export async function convertWebMToMP3(audioBlob: Blob, knownDuration?: number | null): Promise<Blob> {
   const arrayBuffer = await audioBlob.arrayBuffer();
-  
+
   // Create AudioContext to decode the audio
   const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
   const tempCtx = new AudioCtx();
-  
+
   let audioBuffer: AudioBuffer;
   try {
     audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
@@ -22,7 +22,16 @@ export async function convertWebMToMP3(audioBlob: Blob): Promise<Blob> {
 
   const sampleRate = audioBuffer.sampleRate;
   const numChannels = audioBuffer.numberOfChannels;
-  
+
+  let targetLength = audioBuffer.length;
+  if (knownDuration && knownDuration > 0) {
+    const maxSamples = Math.ceil(knownDuration * sampleRate);
+    if (maxSamples < targetLength) {
+      targetLength = maxSamples;
+      console.log(`[Audio] Trimming PCM samples to target duration: ${knownDuration} seconds (${targetLength} samples instead of ${audioBuffer.length})`);
+    }
+  }
+
   console.log(`Starting WebM to MP3 conversion: sampleRate=${sampleRate}, channels=${numChannels}`);
 
   let mp3Encoder: Mp3Encoder;
@@ -35,18 +44,18 @@ export async function convertWebMToMP3(audioBlob: Blob): Promise<Blob> {
     mp3Encoder = new Mp3Encoder(2, sampleRate, bitrate);
     const leftChannel = audioBuffer.getChannelData(0);
     const rightChannel = audioBuffer.getChannelData(1);
-    
-    const leftInt16 = new Int16Array(leftChannel.length);
-    const rightInt16 = new Int16Array(rightChannel.length);
-    
-    for (let i = 0; i < leftChannel.length; i++) {
+
+    const leftInt16 = new Int16Array(targetLength);
+    const rightInt16 = new Int16Array(targetLength);
+
+    for (let i = 0; i < targetLength; i++) {
       let sL = Math.max(-1, Math.min(1, leftChannel[i]));
       leftInt16[i] = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
-      
+
       let sR = Math.max(-1, Math.min(1, rightChannel[i]));
       rightInt16[i] = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
     }
-    
+
     for (let i = 0; i < leftInt16.length; i += sampleBlockSize) {
       const leftChunk = leftInt16.subarray(i, i + sampleBlockSize);
       const rightChunk = rightInt16.subarray(i, i + sampleBlockSize);
@@ -59,13 +68,13 @@ export async function convertWebMToMP3(audioBlob: Blob): Promise<Blob> {
     // Encode as Mono
     mp3Encoder = new Mp3Encoder(1, sampleRate, bitrate);
     const monoChannel = audioBuffer.getChannelData(0);
-    const monoInt16 = new Int16Array(monoChannel.length);
-    
-    for (let i = 0; i < monoChannel.length; i++) {
+    const monoInt16 = new Int16Array(targetLength);
+
+    for (let i = 0; i < targetLength; i++) {
       let s = Math.max(-1, Math.min(1, monoChannel[i]));
       monoInt16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
     }
-    
+
     for (let i = 0; i < monoInt16.length; i += sampleBlockSize) {
       const chunk = monoInt16.subarray(i, i + sampleBlockSize);
       const mp3buf = mp3Encoder.encodeBuffer(chunk);
@@ -80,6 +89,26 @@ export async function convertWebMToMP3(audioBlob: Blob): Promise<Blob> {
     mp3Data.push(mp3buf);
   }
 
+  const mp3Blob = new Blob(mp3Data as any[], {
+    type: 'audio/mp3',
+  });
+
   console.log('WebM to MP3 conversion complete.');
-  return new Blob(mp3Data as any[], { type: 'audio/mp3' });
+  console.log('MP3 Blob size:', mp3Blob.size);
+
+  const mp3TestUrl = URL.createObjectURL(mp3Blob);
+  const mp3TestAudio = new Audio(mp3TestUrl);
+
+  mp3TestAudio.addEventListener('loadedmetadata', () => {
+    console.log(
+      '🎵 FINAL MP3 LENGTH:',
+      mp3TestAudio.duration,
+      'seconds'
+    );
+    console.log(`[Audio] MP3 duration: ${mp3TestAudio.duration} seconds`);
+
+    URL.revokeObjectURL(mp3TestUrl);
+  });
+
+  return mp3Blob;
 }

@@ -129,6 +129,11 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
   const mediaRecording = useMediaRecording();
 
+  const mediaRecordingStopRef = useRef(mediaRecording.stop);
+  useEffect(() => {
+    mediaRecordingStopRef.current = mediaRecording.stop;
+  }, [mediaRecording.stop]);
+
   const [sessionTranscript, setSessionTranscript] = useState("");
   const [sessionFillerWords, setSessionFillerWords] = useState<FillerWordCount[]>([]);
 
@@ -536,9 +541,11 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     const blob = await mediaRecording.stop();
     recordedBlobRef.current = blob;
 
+    const actualDuration = (blob as any).actualDuration;
+
     // Start background MP3 conversion immediately!
     console.log("Starting background WebM to MP3 conversion...");
-    conversionPromiseRef.current = convertWebMToMP3(blob).catch(err => {
+    conversionPromiseRef.current = convertWebMToMP3(blob, actualDuration).catch(err => {
       console.error("Background MP3 conversion failed:", err);
       throw err;
     });
@@ -555,6 +562,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       )
       : speechSecs - timeLeft;
 
+    console.log(`[Audio] Recording timer duration: ${duration} seconds`);
     setTotalSpeechDuration(duration);
 
     // Trigger local Whisper transcription
@@ -564,9 +572,10 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     speechSecs,
     timeLeft,
     speechStartTime,
-    mediaRecording,
+    mediaRecording.stop,
     performTranscription,
   ]);
+
   useEffect(() => {
     return () => {
       if (intervalRef.current) {
@@ -577,7 +586,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
         cancelAnimationFrame(animFrameRef.current);
       }
 
-      mediaRecording.stop();
+      mediaRecordingStopRef.current();
     };
   }, []);
 
@@ -821,6 +830,7 @@ Here is my speech transcript:
         audioUrl={mediaRecording.audioUrl}
         audioBlob={mediaRecording.audioBlob}
         conversionPromise={conversionPromiseRef.current}
+        actualAudioDuration={mediaRecording.audioDuration}
       />
     );
   }

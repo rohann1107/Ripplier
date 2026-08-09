@@ -6,6 +6,7 @@ interface MediaRecordingHook {
   audioUrl: string | null;
   audioBlob: Blob | null;
   duration: number; // elapsed recording time in seconds
+  audioDuration: number | null; // actual calculated duration in seconds
   start: () => Promise<void>;
   stop: () => Promise<Blob>;
   pause: () => void;
@@ -20,6 +21,7 @@ export function useMediaRecording(): MediaRecordingHook {
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [duration, setDuration] = useState(0);
+  const [audioDuration, setAudioDuration] = useState<number | null>(null);
   const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -28,6 +30,7 @@ export function useMediaRecording(): MediaRecordingHook {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopResolverRef = useRef<((blob: Blob) => void) | null>(null);
+
 
   const start = useCallback(async () => {
     try {
@@ -58,21 +61,68 @@ export function useMediaRecording(): MediaRecordingHook {
       mediaRecorder.onstop = () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const url = URL.createObjectURL(blob);
+
         setAudioUrl(url);
         setAudioBlob(blob);
         stream.getTracks().forEach((t) => t.stop());
         if (durationTimerRef.current) clearInterval(durationTimerRef.current);
-        
-        if (stopResolverRef.current) {
-          stopResolverRef.current(blob);
-          stopResolverRef.current = null;
-        }
+
+        // Background duration calculation
+        const tempUrl = URL.createObjectURL(blob);
+        const durationAudio = new Audio();
+        durationAudio.preload = 'metadata';
+        durationAudio.src = tempUrl;
+
+        const finalize = (actualDur: number | null) => {
+          if (actualDur !== null) {
+            (blob as any).actualDuration = actualDur;
+          }
+          if (stopResolverRef.current) {
+            stopResolverRef.current(blob);
+            stopResolverRef.current = null;
+          }
+        };
+
+        durationAudio.onloadedmetadata = () => {
+          let dur = durationAudio.duration;
+          if (dur === Infinity) {
+            durationAudio.currentTime = 1e101; // seek to end
+            durationAudio.ontimeupdate = () => {
+              durationAudio.ontimeupdate = null; // reset
+              dur = durationAudio.duration;
+              let finalDur: number | null = null;
+              if (Number.isFinite(dur) && dur > 0) {
+                setAudioDuration(dur);
+                console.log(`[Audio] WebM duration: ${dur} seconds`);
+                finalDur = dur;
+              }
+              durationAudio.currentTime = 0;
+              URL.revokeObjectURL(tempUrl);
+              finalize(finalDur);
+            };
+          } else {
+            let finalDur: number | null = null;
+            if (Number.isFinite(dur) && dur > 0) {
+              setAudioDuration(dur);
+              console.log(`[Audio] WebM duration: ${dur} seconds`);
+              finalDur = dur;
+            }
+            URL.revokeObjectURL(tempUrl);
+            finalize(finalDur);
+          }
+        };
+
+        durationAudio.onerror = () => {
+          URL.revokeObjectURL(tempUrl);
+          finalize(null);
+        };
       };
 
       mediaRecorder.start(100); // Collect data every 100ms
       setIsRecording(true);
       setIsPaused(false);
       setDuration(0);
+      setAudioDuration(null);
 
       // Track duration
       durationTimerRef.current = setInterval(() => {
@@ -122,6 +172,7 @@ export function useMediaRecording(): MediaRecordingHook {
     setAudioUrl(null);
     setAudioBlob(null);
     setDuration(0);
+    setAudioDuration(null);
     setAnalyserNode(null);
   }, [stop, audioUrl]);
 
@@ -149,6 +200,7 @@ export function useMediaRecording(): MediaRecordingHook {
     audioUrl,
     audioBlob,
     duration,
+    audioDuration,
     start,
     stop,
     pause,
