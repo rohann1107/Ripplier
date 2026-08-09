@@ -285,7 +285,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
           🎉
         </motion.div>
 
-        <h1 className="font-serif text-3xl sm:text-4xl tracking-tight mb-2">
+        <h1 className="font-serif text-5xl sm:text-6xl tracking-tight mb-2">
           Session Complete!
         </h1>
 
