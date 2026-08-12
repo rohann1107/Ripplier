@@ -139,6 +139,7 @@ export const App: React.FC = () => {
     }
   };
   const handleStartSpin = useCallback((velocityRatio: number = 0.85) => {
+    audioEngine.init();
 
     if (spinningRef.current || filteredTopics.length === 0) return;
 
@@ -229,6 +230,15 @@ export const App: React.FC = () => {
 
 
   useEffect(() => {
+    const handleGesture = () => {
+      audioEngine.init();
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
+    };
+    window.addEventListener('click', handleGesture);
+    window.addEventListener('keydown', handleGesture);
+    window.addEventListener('touchstart', handleGesture);
 
     return () => {
 
@@ -240,6 +250,9 @@ export const App: React.FC = () => {
         cancelAnimationFrame(animFrameRef.current);
       }
 
+      window.removeEventListener('click', handleGesture);
+      window.removeEventListener('keydown', handleGesture);
+      window.removeEventListener('touchstart', handleGesture);
     };
 
   }, []);

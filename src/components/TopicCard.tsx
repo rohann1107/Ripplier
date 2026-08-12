@@ -10,6 +10,7 @@ interface TopicCardProps {
 
 export const TopicCard: React.FC<TopicCardProps> = ({
   topic,
+  isSpinning = false,
 }) => {
   if (!topic) {
     return (
@@ -44,29 +45,48 @@ export const TopicCard: React.FC<TopicCardProps> = ({
       {/* Animated Topic */}
       <div className="min-h-[100px] flex items-center my-2 mt-12 overflow-hidden relative">
 
-        <motion.h2
-          key={topic.id}
-          initial={{ opacity: 0, y: 11 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 0.18,
-            ease: "easeOut"
-          }}
-          className="
-             font-serif
-            text-[#F5F2EC]
-            leading-[1.15]
-            tracking-tight
-            break-words
-            w-full
-            text-[3.5rem]
-            sm:text-[4rem]
-            lg:text-[6rem]
-            font-normal text-left
-          "
-        >
-          {topic.title}
-        </motion.h2>
+        {isSpinning ? (
+          <h2
+            className="
+              font-serif
+              text-[#F5F2EC]/80
+              leading-[1.15]
+              tracking-tight
+              break-words
+              w-full
+              text-[3.5rem]
+              sm:text-[4rem]
+              lg:text-[6rem]
+              font-normal text-left
+            "
+          >
+            {topic.title}
+          </h2>
+        ) : (
+          <motion.h2
+            key={topic.id}
+            initial={{ opacity: 0, y: 11 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 0.18,
+              ease: "easeOut"
+            }}
+            className="
+              font-serif
+              text-[#F5F2EC]
+              leading-[1.15]
+              tracking-tight
+              break-words
+              w-full
+              text-[3.5rem]
+              sm:text-[4rem]
+              lg:text-[6rem]
+              font-normal text-left
+            "
+          >
+            {topic.title}
+          </motion.h2>
+        )}
 
       </div>
 

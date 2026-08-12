@@ -19,6 +19,14 @@ class MechanicalSoundEngine {
     }
   }
 
+  public init() {
+    try {
+      this.initContext();
+    } catch (e) {
+      console.warn('Failed to pre-initialize AudioContext:', e);
+    }
+  }
+
   public setSoundEnabled(enabled: boolean) {
     this.soundEnabled = enabled;
   }

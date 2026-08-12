@@ -1009,263 +1009,269 @@ Here is my speech transcript:
         </button>
       </div>
 
-      {/* Center Topic Header */}
-      <div className="w-full max-w-3xl text-center  px-2 mt-3">
-        <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl lg:text-5xl text-[#F5F2EC] tracking-tight leading-tight break-words">
-          "{activeTopic.title}"
-        </h1>
-      </div>
+      {/* Unified Center Content */}
+      <div className="flex-1 w-full max-w-md sm:max-w-4xl flex flex-col items-center justify-center gap-10 sm:gap-6 my-auto py-4">
 
-      {/* Giant Clock Radial Timer Display */}
-      <div className="relative flex items-center justify-center mt-4" style={{ width: 'min(90vw, 360px)', height: 'min(90vw, 360px)' }}>
-        <svg className="w-full h-full transform -rotate-90" viewBox="0 0 360 360">
-          <circle
-            cx="180"
-            cy="180"
-            r={radius}
-            className="stroke-white/[0.08]"
-            strokeWidth="10"
-            fill="transparent"
-          />
-          <circle
-            cx="180"
-            cy="180"
-            r={radius}
-            className={`transition-all duration-1000 ${phase === 'research' ? 'stroke-[#7CC8F3]' : 'stroke-[#C58A55]'
-              }`}
-            strokeWidth="10"
-            strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
-            strokeLinecap="round"
-            fill="transparent"
-          />
-        </svg>
-
-        <div className="absolute flex flex-col items-center justify-center text-center">
-          <span className="font-serif text-[#AAAAAA] tracking-tighter" style={{
-            fontSize: 'clamp(8rem, 18vw, 9rem)',
-            lineHeight: 1,
-          }}>
-            {formattedTime}
-          </span>
-          <span className="text-xs font-mono uppercase tracking-widest text-[#AAAAAA] mt-1">
-            {phase === 'research' ? 'Research & Brainstorm.' : 'Speak Now.'}
-          </span>
+        {/* Center Topic Header */}
+        <div className="w-full text-center px-2 animate-scale-up">
+          <h1 className="font-serif text-5xl sm:text-6xl md:text-7xl lg:text-7xl text-[#F5F2EC] tracking-tighter leading-[1.05] break-words font-medium">
+            "{activeTopic.title}"
+          </h1>
         </div>
-      </div>
 
-      {/* Preset Duration Selector */}
-      <div className="flex items-center gap-2 bg-[#111111] p-1.5 rounded-full border border-white/[0.08] mb-3 flex-wrap justify-center">
-        {phase === 'research'
-          ? [
-            { label: '5m', secs: 300 },
-            { label: '10m', secs: 600 },
-            { label: '15m', secs: 900 },
-            { label: '20m', secs: 1200 },
-          ].map((p) => (
-            <button
-              key={p.secs}
-              onClick={() => handleSelectResearchDuration(p.secs)}
-              className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${researchSecs === p.secs
-                ? 'bg-[#7CC8F3] text-[#090909] font-bold border-[#7CC8F3]'
-                : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
+        {/* Giant Clock Radial Timer Display */}
+        <div className="relative flex items-center justify-center shrink-0 my-5 sm:my-3" style={{ width: 'min(78vw, 290px)', height: 'min(78vw, 290px)' }}>
+          <svg className="w-full h-full transform -rotate-90" viewBox="0 0 360 360">
+            <circle
+              cx="180"
+              cy="180"
+              r={radius}
+              className="stroke-white/[0.08]"
+              strokeWidth="10"
+              fill="transparent"
+            />
+            <circle
+              cx="180"
+              cy="180"
+              r={radius}
+              className={`transition-all duration-1000 ${phase === 'research' ? 'stroke-[#7CC8F3]' : 'stroke-[#C58A55]'
                 }`}
-            >
-              {p.label}
-            </button>
-          ))
-          : [
-            { label: '1m', secs: 60 },
-            { label: '2m', secs: 120 },
-            { label: '3m', secs: 180 },
-            { label: '5m', secs: 300 },
-            { label: '10m', secs: 600 },
-          ].map((p) => (
-            <button
-              key={p.secs}
-              onClick={() => handleSelectSpeechDuration(p.secs)}
-              className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${speechSecs === p.secs
-                ? 'bg-[#C58A55] text-[#090909] font-bold border-[#C58A55]'
-                : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
-                }`}
-            >
-              {p.label}
-            </button>
-          ))}
-      </div>
+              strokeWidth="10"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              fill="transparent"
+            />
+          </svg>
 
-      {/* Speech Phase: Waveform or Text Prompt */}
-      {phase === 'speech' && isSpeechActive && (
-        <div className="w-full max-w-xl flex flex-col items-center gap-2.5">
-          {isRecordEnabled ? (
-            <>
-              <canvas ref={canvasRef} width={500} height={40} className="w-full h-15 bg-[#111111] rounded-xl border border-white/[0.05]" />
-
-              {mediaRecording.isRecording && !mediaRecording.isPaused && (
-                <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
-                  <div className="w-2 h-2 rounded-full bg-[#E05D5D] animate-pulse" />
-                  Recording...
-                  <div className="flex items-center gap-2 text-xs font-mono text-white">
-                    <div className="w-2 h-2 rounded-full bg-[#7CC8F3] animate-pulse" />
-                    Live Transcripting... </div>
-                </div>
-              )}
-              {mediaRecording.isPaused && (
-                <div className="flex items-center gap-2 text-xs font-mono text-[#E0A85D]">
-                  <div className="w-2 h-2 rounded-full bg-[#E0A85D]" />
-                  Paused
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="text-center py-4 px-6 rounded-2xl bg-[#111111] border border-white/[0.05] w-full animate-fadeIn flex flex-col gap-1 items-center justify-center">
-              <span className="text-sm font-mono text-[#7CC8F3] uppercase tracking-wider font-semibold">
-                Start your speech now
-              </span>
-              <span className="text-[10px] font-mono text-[#AAAAAA] uppercase tracking-widest">
-                Focus on your pacing and presentation
-              </span>
-            </div>
-          )}
+          <div className="absolute flex flex-col items-center justify-center text-center">
+            <span className="font-serif text-[#AAAAAA] tracking-tighter" style={{
+              fontSize: 'clamp(5.5rem, 15vw, 6.8rem)',
+              lineHeight: 1,
+            }}>
+              {formattedTime}
+            </span>
+            <span className="text-[10px] sm:text-xs font-mono uppercase tracking-widest text-[#AAAAAA] mt-1">
+              {phase === 'research' ? 'Research & Brainstorm.' : 'Speak Now.'}
+            </span>
+          </div>
         </div>
-      )}
 
-      {/* Speech Controls Container */}
-      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-1 sm:my-3">
-
-        {/* Speech Phase Toggle */}
-        {phase === 'speech' && !timerStartedRef.current && (
-          <div className="flex items-center justify-between gap-2 sm:gap-4
-              w-[calc(100vw-32px)] sm:w-auto
-              sm:min-w-[355px]
-              bg-[#111111]/90
-              px-6 sm:px-6
-              py-6 sm:py-3.5
-              rounded-2xl
-              border border-white/[0.08]
-              transition-all">
-
-            <div className="flex flex-col min-w-0">
-              <span className="text-[12px] sm:text-[11px] font-mono text-[#F5F2EC] uppercase tracking-wider font-semibold whitespace-nowrap">
-                Record & Transcribe Speech
-              </span>
-
-              <span className="text-[8px] sm:text-[9px] font-mono text-[#AAAAAA] uppercase tracking-widest mt-0.5 whitespace-nowrap">
-                {isRecordEnabled
-                  ? 'Microphone & AI Coach enabled'
-                  : 'Timer only (Offline / No recording)'}
-              </span>
-            </div>
-
-            {/* Record Toggle */}
-            <button
-              onClick={() => {
-                audioEngine.playClickSound();
-                setIsRecordEnabled(prev => !prev);
-              }}
-              style={{
-                boxShadow: isRecordEnabled
-                  ? '0 0 20px rgba(120, 178, 106, 0.25)'
-                  : 'none',
-              }}
-              className={`relative shrink-0
-                w-20 h-7 sm:w20 sm:h-8 pb-12
-                rounded-full
-                transition-all duration-300
-                outline-none cursor-pointer border
-                ${isRecordEnabled
-                  ? 'bg-[#78B26A]/20 border-[#78B26A]/45'
-                  : 'bg-[#181818] border-white/[0.08]'
-                }`}
-              aria-label="Toggle recording and transcription"
-            >
-              <div
-                className={`absolute mt-1 mr-1
-                  top-0.5 left-0.5
-                  w-9 h-9 sm:w-9 sm:h-9
-                  rounded-full
-                  transition-all duration-300
-                  ${isRecordEnabled
-                    ? 'translate-x-10 sm:translate-x-10 bg-[#78B26A]'
-                    : 'bg-[#666666]'
+        {/* Preset Duration Selector */}
+        <div className="flex items-center gap-2 bg-[#111111] p-1.5 rounded-full border border-white/[0.08] flex-wrap justify-center shrink-0">
+          {phase === 'research'
+            ? [
+              { label: '5m', secs: 300 },
+              { label: '10m', secs: 600 },
+              { label: '15m', secs: 900 },
+              { label: '20m', secs: 1200 },
+            ].map((p) => (
+              <button
+                key={p.secs}
+                onClick={() => handleSelectResearchDuration(p.secs)}
+                className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${researchSecs === p.secs
+                  ? 'bg-[#7CC8F3] text-[#090909] font-bold border-[#7CC8F3]'
+                  : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
                   }`}
-              />
-            </button>
+              >
+                {p.label}
+              </button>
+            ))
+            : [
+              { label: '1m', secs: 60 },
+              { label: '2m', secs: 120 },
+              { label: '3m', secs: 180 },
+              { label: '5m', secs: 300 },
+              { label: '10m', secs: 600 },
+            ].map((p) => (
+              <button
+                key={p.secs}
+                onClick={() => handleSelectSpeechDuration(p.secs)}
+                className={`px-4 py-1.5 rounded-full text-xs font-mono transition-all border cursor-pointer ${speechSecs === p.secs
+                  ? 'bg-[#C58A55] text-[#090909] font-bold border-[#C58A55]'
+                  : 'border-transparent text-[#AAAAAA] hover:text-[#F5F2EC]'
+                  }`}
+              >
+                {p.label}
+              </button>
+            ))}
+        </div>
 
+        {/* Speech Phase: Waveform or Text Prompt */}
+        {phase === 'speech' && isSpeechActive && (
+          <div className="w-full max-w-xl flex flex-col items-center gap-2.5 shrink-0">
+            {isRecordEnabled ? (
+              <>
+                <canvas ref={canvasRef} width={500} height={40} className="w-full h-15 bg-[#111111] rounded-xl border border-white/[0.05]" />
+
+                {mediaRecording.isRecording && !mediaRecording.isPaused && (
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
+                    <div className="w-2 h-2 rounded-full bg-[#E05D5D] animate-pulse" />
+                    Recording...
+                    <div className="flex items-center gap-2 text-xs font-mono text-white">
+                      <div className="w-2 h-2 rounded-full bg-[#7CC8F3] animate-pulse" />
+                      Live Transcripting... </div>
+                  </div>
+                )}
+                {mediaRecording.isPaused && (
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#E0A85D]">
+                    <div className="w-2 h-2 rounded-full bg-[#E0A85D]" />
+                    Paused
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-4 px-6 rounded-2xl bg-[#111111] border border-white/[0.05] w-full animate-fadeIn flex flex-col gap-1 items-center justify-center">
+                <span className="text-sm font-mono text-[#7CC8F3] uppercase tracking-wider font-semibold">
+                  Start your speech now
+                </span>
+                <span className="text-[10px] font-mono text-[#AAAAAA] uppercase tracking-widest">
+                  Focus on your pacing and presentation
+                </span>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Main Action Buttons */}
-        <div className="flex items-center justify-center gap-3 sm:gap-4 mt-1 sm:mt-0">
+        {/* Speech Controls Container */}
+        <div className={`flex flex-col items-center justify-center gap-[26px] sm:gap-[20px] w-full shrink-0 ${
+          phase === 'research' ? 'mt-2.5 sm:mt-[20px]' : ''
+        }`}>
 
-          {phase === 'research' ? (
-            <>
+          {/* Speech Phase Toggle */}
+          {phase === 'speech' && !timerStartedRef.current && (
+            <div className="flex items-center justify-between gap-4
+                w-[calc(100vw-32px)] sm:w-full sm:max-w-md
+                bg-[#111111]/90
+                px-5 sm:px-6
+                py-4 sm:py-3.5
+                rounded-2xl
+                border border-white/[0.08]
+                transition-all">
+
+              <div className="flex flex-col min-w-0">
+                <span className="text-[12px] sm:text-[11px] font-mono text-[#F5F2EC] uppercase tracking-wider font-semibold whitespace-nowrap">
+                  Record & Transcribe Speech
+                </span>
+
+                <span className="text-[8px] sm:text-[9px] font-mono text-[#AAAAAA] uppercase tracking-widest mt-0.5 whitespace-nowrap">
+                  {isRecordEnabled
+                    ? 'Microphone & AI Coach enabled'
+                    : 'Timer only (Offline / No recording)'}
+                </span>
+              </div>
+
+              {/* Record Toggle (Apple Style Capsule Switch) */}
               <button
-                onClick={toggleTimer}
-                className="px-6 sm:px-5 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                onClick={() => {
+                  audioEngine.playClickSound();
+                  setIsRecordEnabled(prev => !prev);
+                }}
+                style={{
+                  boxShadow: isRecordEnabled
+                    ? '0 0 20px rgba(120, 178, 106, 0.25)'
+                    : 'none',
+                }}
+                className={`relative shrink-0
+                  w-20 h-6 sm:w-12 sm:h-7
+                  rounded-full
+                  transition-all duration-300
+                  outline-none cursor-pointer border
+                  ${isRecordEnabled
+                    ? 'bg-[#78B26A]/20 border-[#78B26A]/45'
+                    : 'bg-[#181818] border-white/[0.08]'
+                  }`}
+                aria-label="Toggle recording and transcription"
               >
-                {isRunning ? (
-                  <Pause className="w-4 h-4" />
-                ) : (
-                  <Play className="w-4 h-4 fill-current" />
-                )}
-                {isRunning ? 'PAUSE TIMER' : 'START TIMER'}
+                <div
+                  className={`absolute
+                    top-0.5 left-0.5
+                    w-10 h-10 sm:w-5 sm:h-5
+                    rounded-full
+                    transition-all duration-300
+                    ${isRecordEnabled
+                      ? 'translate-x-9 sm:translate-x-6 bg-[#78B26A]'
+                      : 'bg-[#666666]'
+                    }`}
+                />
               </button>
 
-              <button
-                onClick={handleResearchComplete}
-                className="px-6 sm:px-8 py-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#F5F2EC] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-              >
-                Skip Research <ArrowRight className="w-4 h-4" />
-              </button>
-            </>
-          ) : (
-            <>
-              {!isSpeechActive ? (
+            </div>
+          )}
+
+          {/* Main Action Buttons */}
+          <div className="flex items-center justify-center gap-[17px] sm:gap-4 w-full">
+
+            {phase === 'research' ? (
+              <>
                 <button
-                  onClick={handleStartSpeech}
-                  className="px-6 sm:px-8 py-3 rounded-full bg-[#E05D5D] text-white text-xs font-mono uppercase tracking-wider font-bold shadow-lg hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                  onClick={toggleTimer}
+                  className="px-6 sm:px-5 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
                 >
-                  <Play className="w-4 h-4 fill-current" />
-                  {isRecordEnabled ? 'START SPEECH' : 'START TIMER'}
+                  {isRunning ? (
+                    <Pause className="w-4 h-4" />
+                  ) : (
+                    <Play className="w-4 h-4 fill-current" />
+                  )}
+                  {isRunning ? 'PAUSE TIMER' : 'START TIMER'}
                 </button>
-              ) : (
-                <>
+
+                <button
+                  onClick={handleResearchComplete}
+                  className="px-6 sm:px-8 py-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#F5F2EC] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  Skip Research <ArrowRight className="w-4 h-4" />
+                </button>
+              </>
+            ) : (
+              <>
+                {!isSpeechActive ? (
                   <button
-                    onClick={toggleTimer}
-                    className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                    onClick={handleStartSpeech}
+                    className="px-6 sm:px-8 py-3 rounded-full bg-[#E05D5D] text-white text-xs font-mono uppercase tracking-wider font-bold shadow-lg hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
                   >
-                    {isRunning ? (
-                      <Pause className="w-4 h-4" />
-                    ) : (
-                      <Play className="w-4 h-4 fill-current" />
-                    )}
-                    {isRunning ? 'PAUSE' : 'RESUME TIMER'}
+                    <Play className="w-4 h-4 fill-current" />
+                    {isRecordEnabled ? 'START SPEECH' : 'START TIMER'}
                   </button>
+                ) : (
+                  <>
+                    <button
+                      onClick={toggleTimer}
+                      className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                    >
+                      {isRunning ? (
+                        <Pause className="w-4 h-4" />
+                      ) : (
+                        <Play className="w-4 h-4 fill-current" />
+                      )}
+                      {isRunning ? 'PAUSE' : 'RESUME TIMER'}
+                    </button>
 
-                  <button
-                    onClick={() => handleDoneSpeaking()}
-                    className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-                  >
-                    <Square className="w-4 h-4 fill-current" />
-                    {isRecordEnabled ? 'Done Speaking' : 'Finish'}
-                  </button>
-                </>
-              )}
-            </>
-          )}
+                    <button
+                      onClick={() => handleDoneSpeaking()}
+                      className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                    >
+                      <Square className="w-4 h-4 fill-current" />
+                      {isRecordEnabled ? 'Done Speaking' : 'Finish'}
+                    </button>
+                  </>
+                )}
+              </>
+            )}
 
-          {isSpeechActive && (
-            <button
-              onClick={resetTimer}
-              className="p-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer"
-              title="Reset Timer"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
+            {isSpeechActive && (
+              <button
+                onClick={resetTimer}
+                className="p-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer animate-fadeIn"
+                title="Reset Timer"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
 
+          </div>
         </div>
+
       </div>
 
       {/* Local Whisper Transcription Overlays */}
