@@ -23,6 +23,7 @@ interface SessionSummaryProps {
   audioBlob?: Blob | null;
   conversionPromise?: Promise<Blob> | null;
   actualAudioDuration?: number | null;
+  isRecordEnabled?: boolean;
 }
 
 function formatDuration(seconds: number): string {
@@ -48,6 +49,7 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
   audioBlob,
   conversionPromise,
   actualAudioDuration,
+  isRecordEnabled = true,
 }) => {
   const [copied, setCopied] = React.useState(false);
   const [isPlaying, setIsPlaying] = React.useState(false);
@@ -258,10 +260,11 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
 
   const metrics = [
     { icon: <Clock className="w-5 h-5" />, label: 'Speaking Time', value: formatDuration(speakingTime), color: 'text-[#7CC8F3]' },
-    { icon: <FileText className="w-5 h-5" />, label: 'Total Words', value: `${totalWords} Words`, color: 'text-[#C58A55]' },
-    { icon: <Zap className="w-5 h-5" />, label: 'Speaking Speed', value: `${wpm} WPM`, color: 'text-[#78B26A]' },
+    ...(isRecordEnabled ? [
+      { icon: <FileText className="w-5 h-5" />, label: 'Total Words', value: `${totalWords} Words`, color: 'text-[#C58A55]' },
+      { icon: <Zap className="w-5 h-5" />, label: 'Speaking Speed', value: `${wpm} WPM`, color: 'text-[#78B26A]' }
+    ] : []),
     { icon: <Target className="w-5 h-5" />, label: 'Topic Practiced', value: topicTitle.length > 50 ? topicTitle.substring(0, 47) + '...' : topicTitle, color: 'text-[#F5F2EC]' },
-    // { icon: <Calendar className="w-5 h-5" />, label: 'Session Completed', value: formatDateTime(dateTime), color: 'text-[#AAAAAA]' },
   ];
 
   // Total count of all filler words
@@ -290,7 +293,9 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
         </h1>
 
         <p className="text-sm font-mono text-[#AAAAAA] uppercase tracking-wider">
-          Copy Coach Prompt and Paste into ChatGPT for Feedback
+          {isRecordEnabled
+            ? "Copy Coach Prompt and Paste into ChatGPT for Feedback"
+            : "No recording requested for this session."}
         </p>
       </div>
       {/* Metrics Grid */}
@@ -318,46 +323,48 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
         ))}
 
         {/* Filler Words Metric Card */}
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 + metrics.length * 0.08, duration: 0.35 }}
-          className="p-4 rounded-2xl bg-[#141414] border border-white/[0.08] flex items-start gap-3 sm:col-span-2"
-        >
-          <div className="p-2 rounded-xl bg-white/[0.05] text-[#E05D5D]">
-            <MessageSquare className="w-5 h-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <span className="text-[11px] font-mono text-[#666666] uppercase tracking-wider block">
-              Filler Words Count ({totalFillerCount} total)
-            </span>
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {fillerWords.length > 0 ? (
-                fillerWords.map((fw) => (
-                  <span
-                    key={fw.word}
-                    className="inline-flex items-center px-3 py-1 rounded-full bg-[#E05D5D]/10 border border-[#E05D5D]/20 text-[#E05D5D] text-xs font-medium"
-                  >
-                    {fw.word.trim()}
-                    {fw.count > 1 && (
-                      <span className="ml-1 opacity-70 font-semibold">
-                        ×{fw.count}
-                      </span>
-                    )}
-                  </span>
-                ))
-              ) : (
-                <span className="text-xs text-[#78B26A] font-mono font-medium">
-                  No filler words detected! Excellent job.
-                </span>
-              )}
+        {isRecordEnabled && (
+          <motion.div
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 + metrics.length * 0.08, duration: 0.35 }}
+            className="p-4 rounded-2xl bg-[#141414] border border-white/[0.08] flex items-start gap-3 sm:col-span-2"
+          >
+            <div className="p-2 rounded-xl bg-white/[0.05] text-[#E05D5D]">
+              <MessageSquare className="w-5 h-5" />
             </div>
-          </div>
-        </motion.div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[11px] font-mono text-[#666666] uppercase tracking-wider block">
+                Filler Words Count ({totalFillerCount} total)
+              </span>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {fillerWords.length > 0 ? (
+                  fillerWords.map((fw) => (
+                    <span
+                      key={fw.word}
+                      className="inline-flex items-center px-3 py-1 rounded-full bg-[#E05D5D]/10 border border-[#E05D5D]/20 text-[#E05D5D] text-xs font-medium"
+                    >
+                      {fw.word.trim()}
+                      {fw.count > 1 && (
+                        <span className="ml-1 opacity-70 font-semibold">
+                          ×{fw.count}
+                        </span>
+                      )}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-xs text-[#78B26A] font-mono font-medium">
+                    No filler words detected! Excellent job.
+                  </span>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Audio Player Card */}
-      {audioUrl && (
+      {isRecordEnabled && audioUrl && (
         <motion.div
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -489,29 +496,41 @@ export const SessionSummary: React.FC<SessionSummaryProps> = ({
         transition={{ delay: 0.8, duration: 0.35 }}
         className="w-full grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2"
       >
-        <button
-          onClick={onViewTranscript}
-          className="w-full py-4 rounded-2xl bg-[#181818] border border-white/[0.1] text-[#F5F2EC] hover:border-[#7CC8F3]/50 hover:bg-[#7CC8F3]/5 transition-all text-sm font-mono uppercase tracking-wider flex items-center justify-center gap-3 cursor-pointer"
-        >
-          <Eye className="w-5 h-5 text-[#7CC8F3]" />
-          View Transcript
-        </button>
+        {isRecordEnabled ? (
+          <>
+            <button
+              onClick={onViewTranscript}
+              className="w-full py-4 rounded-2xl bg-[#181818] border border-white/[0.1] text-[#F5F2EC] hover:border-[#7CC8F3]/50 hover:bg-[#7CC8F3]/5 transition-all text-sm font-mono uppercase tracking-wider flex items-center justify-center gap-3 cursor-pointer"
+            >
+              <Eye className="w-5 h-5 text-[#7CC8F3]" />
+              View Transcript
+            </button>
 
-        <button
-          onClick={handleCopy}
-          className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#C58A55] to-[#D4995F] text-[#090909] text-sm font-mono uppercase tracking-wider font-bold flex items-center justify-center gap-3 cursor-pointer shadow-glow-gold hover:opacity-90 transition-all"
-        >
-          {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
-          {copied ? 'Prompt Copied!' : 'Copy Coach Prompt'}
-        </button>
+            <button
+              onClick={handleCopy}
+              className="w-full py-4 rounded-2xl bg-gradient-to-r from-[#C58A55] to-[#D4995F] text-[#090909] text-sm font-mono uppercase tracking-wider font-bold flex items-center justify-center gap-3 cursor-pointer shadow-glow-gold hover:opacity-90 transition-all"
+            >
+              {copied ? <Check className="w-5 h-5" /> : <Copy className="w-5 h-5" />}
+              {copied ? 'Prompt Copied!' : 'Copy Coach Prompt'}
+            </button>
 
-        <button
-          onClick={onPracticeAgain}
-          className="w-full py-4 rounded-2xl bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] hover:border-[#C58A55]/40 transition-all text-sm font-mono uppercase tracking-wider flex items-center justify-center gap-3 cursor-pointer sm:col-span-2"
-        >
-          <RotateCcw className="w-5 h-5" />
-          Practice Again
-        </button>
+            <button
+              onClick={onPracticeAgain}
+              className="w-full py-4 rounded-2xl bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] hover:border-[#C58A55]/40 transition-all text-sm font-mono uppercase tracking-wider flex items-center justify-center gap-3 cursor-pointer sm:col-span-2"
+            >
+              <RotateCcw className="w-5 h-5" />
+              Practice Again
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={onPracticeAgain}
+            className="w-full py-4 rounded-2xl bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] hover:border-[#C58A55]/40 transition-all text-sm font-mono uppercase tracking-wider flex items-center justify-center gap-3 cursor-pointer sm:col-span-2"
+          >
+            <RotateCcw className="w-5 h-5" />
+            Practice Again
+          </button>
+        )}
       </motion.div>
     </motion.div>
     </div>

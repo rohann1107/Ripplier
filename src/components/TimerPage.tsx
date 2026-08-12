@@ -126,6 +126,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   );
 
   const [isRunning, setIsRunning] = useState(false);
+  const [isRecordEnabled, setIsRecordEnabled] = useState(true);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const pendingExitActionRef = useRef<(() => void) | null>(null);
   const isProgrammaticBackRef = useRef(false);
@@ -262,7 +263,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       endTimeRef.current = now + speechSecs * 1000;
       timerStartedRef.current = true;
 
-      await mediaRecording.start();
+      if (isRecordEnabled) {
+        await mediaRecording.start();
+      }
 
       setTimeLeft(speechSecs);
       setIsRunning(true);
@@ -271,7 +274,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       console.error(err);
     }
 
-  }, [speechSecs, mediaRecording]);
+  }, [speechSecs, mediaRecording, isRecordEnabled]);
 
   const handleSelectSpeechDuration = useCallback((secs: number) => {
     audioEngine.playClickSound();
@@ -306,6 +309,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
   const handleResearchComplete = useCallback(() => {
     audioEngine.playClickSound();
     setIsRunning(false);
+    timerStartedRef.current = false;
     setPhase('speech');
     setTimeLeft(speechSecs);
 
@@ -347,7 +351,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       return;
     }
 
-    if (!mediaRecording.isRecording) {
+    const isSpeechActive = isRecordEnabled ? mediaRecording.isRecording : timerStartedRef.current;
+
+    if (!isSpeechActive) {
       handleStartSpeech();
       return;
     }
@@ -367,7 +373,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
       setIsRunning(false);
 
-      mediaRecording.pause();
+      if (isRecordEnabled) {
+        mediaRecording.pause();
+      }
 
     } else {
 
@@ -384,7 +392,9 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
       setIsRunning(true);
 
-      mediaRecording.resume();
+      if (isRecordEnabled) {
+        mediaRecording.resume();
+      }
     }
 
   }, [
@@ -393,6 +403,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     timeLeft,
     mediaRecording,
     handleStartSpeech,
+    isRecordEnabled,
   ]);
 
   const resetTimer = () => {
@@ -570,18 +581,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     endTimeRef.current = 0;
     pausedRemainingRef.current = 0;
 
-    const blob = await mediaRecording.stop();
-    recordedBlobRef.current = blob;
-
-    const actualDuration = (blob as any).actualDuration;
-
-    // Start background MP3 conversion immediately!
-    console.log("Starting background WebM to MP3 conversion...");
-    conversionPromiseRef.current = convertWebMToMP3(blob, actualDuration).catch(err => {
-      console.error("Background MP3 conversion failed:", err);
-      throw err;
-    });
-
     const duration = speechStartTime
       ? Math.max(
         1,
@@ -599,6 +598,39 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       setTotalSpeechDuration(duration);
     }
 
+    if (!isRecordEnabled) {
+      // Just save a simplified session and go to summary!
+      saveSession({
+        id: generateSessionId(),
+        topic: activeTopic.title,
+        topicCategory: activeTopic.category,
+        date: new Date().toISOString(),
+        duration,
+        transcript: "",
+        wordsPerMinute: 0,
+        totalWords: 0,
+        fillerWords: [],
+      });
+      if (!options?.skipSummary) {
+        setSessionTranscript("");
+        setSessionFillerWords([]);
+        setTimerView("summary");
+      }
+      return;
+    }
+
+    const blob = await mediaRecording.stop();
+    recordedBlobRef.current = blob;
+
+    const actualDuration = (blob as any).actualDuration;
+
+    // Start background MP3 conversion immediately!
+    console.log("Starting background WebM to MP3 conversion...");
+    conversionPromiseRef.current = convertWebMToMP3(blob, actualDuration).catch(err => {
+      console.error("Background MP3 conversion failed:", err);
+      throw err;
+    });
+
     // Trigger local Whisper transcription
     await performTranscription(blob, duration, options?.skipSummary);
 
@@ -608,6 +640,8 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     speechStartTime,
     mediaRecording.stop,
     performTranscription,
+    isRecordEnabled,
+    activeTopic,
   ]);
 
   // Listen for back button / popstate events to implement smart back behavior
@@ -716,46 +750,36 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     }
 
     intervalRef.current = setInterval(() => {
-
       setTimeLeft(prev => {
-
-        if (prev <= 1) {
-
-          clearInterval(intervalRef.current!);
-          intervalRef.current = null;
-
-          setIsRunning(false);
-
-          audioEngine.playTimerEnd();
-
-          handleResearchComplete();
-
-          return 0;
-        }
-
+        if (prev <= 1) return 0;
         return prev - 1;
-
       });
-
     }, 1000);
 
     return () => {
-
       if (intervalRef.current) {
-
         clearInterval(intervalRef.current);
-
         intervalRef.current = null;
-
       }
-
     };
 
   }, [
     phase,
     isRunning,
-    handleResearchComplete,
   ]);
+
+  // Handle research completion side effects when timeLeft reaches 0
+  useEffect(() => {
+    if (phase === "research" && isRunning && timeLeft === 0) {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      setIsRunning(false);
+      audioEngine.playTimerEnd();
+      handleResearchComplete();
+    }
+  }, [timeLeft, phase, isRunning, handleResearchComplete]);
   /* ===========================================================
    SPEECH TIMER
 =========================================================== */
@@ -763,7 +787,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
     if (phase !== "speech") return;
 
-    if (!isRunning) {
+    if (!isRunning || !timerStartedRef.current) {
 
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -826,7 +850,13 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     handleDoneSpeaking,
   ]);
   useEffect(() => {
-    if (!mediaRecording.analyserNode || !canvasRef.current) return;
+    if (!mediaRecording.analyserNode || !canvasRef.current || !mediaRecording.isRecording || mediaRecording.isPaused) {
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+      return;
+    }
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -835,6 +865,10 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     const analyser = mediaRecording.analyserNode;
     const bufferLength = analyser.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
+
+    const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
+    gradient.addColorStop(0, '#C58A55');
+    gradient.addColorStop(1, '#7CC8F3');
 
     const render = () => {
       analyser.getByteFrequencyData(dataArray);
@@ -845,10 +879,6 @@ export const TimerPage: React.FC<TimerPageProps> = ({
 
       for (let i = 0; i < bufferLength; i++) {
         const barHeight = (dataArray[i] / 255) * canvas.height;
-        const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-        gradient.addColorStop(0, '#C58A55');
-        gradient.addColorStop(1, '#7CC8F3');
-
         ctx.fillStyle = gradient;
         ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
         x += barWidth + 1;
@@ -860,13 +890,15 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
-  }, [mediaRecording.analyserNode]);
+  }, [mediaRecording.analyserNode, mediaRecording.isRecording, mediaRecording.isPaused]);
 
   useEffect(() => {
     return () => {
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, []);
+
+  const isSpeechActive = isRecordEnabled ? mediaRecording.isRecording : timerStartedRef.current;
 
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
@@ -941,6 +973,7 @@ Here is my speech transcript:
         audioBlob={mediaRecording.audioBlob}
         conversionPromise={conversionPromiseRef.current}
         actualAudioDuration={mediaRecording.audioDuration}
+        isRecordEnabled={isRecordEnabled}
       />
     );
   }
@@ -1062,9 +1095,9 @@ Here is my speech transcript:
       </div>
 
       {/* Speech Phase: Waveform */}
-      {phase === 'speech' && (
+      {phase === 'speech' && isSpeechActive && (
         <div className="w-full max-w-xl flex flex-col items-center gap-2.5">
-          <canvas ref={canvasRef} width={500} height={40} className="w-full h-10 bg-[#111111] rounded-xl border border-white/[0.05]" />
+          <canvas ref={canvasRef} width={500} height={40} className="w-full h-15 bg-[#111111] rounded-xl border border-white/[0.05]" />
 
           {mediaRecording.isRecording && !mediaRecording.isPaused && (
             <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
@@ -1086,191 +1119,276 @@ Here is my speech transcript:
         </div>
       )}
 
-      {/* Main Action Buttons */}
-      <div className="flex items-center gap-3 sm:gap-4 my-3">
-        {phase === 'research' ? (
-          <>
-            <button
-              onClick={toggleTimer}
-              className="px-6 sm:px-5 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-            >
-              {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-              {isRunning ? 'PAUSE TIMER' : 'START TIMER'}
-            </button>
-            <button
-              onClick={handleResearchComplete}
-              className="px-6 sm:px-8 py-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#F5F2EC] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-            >
-              Skip Research <ArrowRight className="w-4 h-4" />
-            </button>
-          </>
-        ) : (
-          <>
-            {!mediaRecording.isRecording ? (
-              <button
-                onClick={handleStartSpeech}
-                className="px-6 sm:px-8 py-3 rounded-full bg-[#E05D5D] text-white text-xs font-mono uppercase tracking-wider font-bold shadow-lg hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                START SPEECH
-              </button>
-            ) : (
-              <>
-                <button
-                  onClick={toggleTimer}
-                  className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-                >
-                  {isRunning ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-current" />}
-                  {isRunning ? 'PAUSE' : 'RESUME TIMER'}
-                </button>
+      {/* Speech Controls Container */}
+      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 mt-1 sm:my-3">
 
-                <button
-                  onClick={() => handleDoneSpeaking()}
-                  className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
-                >
-                  <Square className="w-4 h-4 fill-current" />
-                  Done Speaking
-                </button>
-              </>
-            )}
-          </>
+        {/* Speech Phase Toggle */}
+        {phase === 'speech' && !timerStartedRef.current && (
+          <div className="flex items-center justify-between gap-2 sm:gap-4
+              w-[calc(100vw-32px)] sm:w-auto
+              sm:min-w-[355px]
+              bg-[#111111]/90
+              px-6 sm:px-6
+              py-6 sm:py-3.5
+              rounded-2xl
+              border border-white/[0.08]
+              transition-all">
+
+            <div className="flex flex-col min-w-0">
+              <span className="text-[12px] sm:text-[11px] font-mono text-[#F5F2EC] uppercase tracking-wider font-semibold whitespace-nowrap">
+                Record & Transcribe Speech
+              </span>
+
+              <span className="text-[8px] sm:text-[9px] font-mono text-[#AAAAAA] uppercase tracking-widest mt-0.5 whitespace-nowrap">
+                {isRecordEnabled
+                  ? 'Microphone & AI Coach enabled'
+                  : 'Timer only (Offline / No recording)'}
+              </span>
+            </div>
+
+            {/* Record Toggle */}
+            <button
+              onClick={() => {
+                audioEngine.playClickSound();
+                setIsRecordEnabled(prev => !prev);
+              }}
+              style={{
+                boxShadow: isRecordEnabled
+                  ? '0 0 20px rgba(120, 178, 106, 0.25)'
+                  : 'none',
+              }}
+              className={`relative shrink-0
+                w-20 h-7 sm:w20 sm:h-8 pb-12
+                rounded-full
+                transition-all duration-300
+                outline-none cursor-pointer border
+                ${isRecordEnabled
+                  ? 'bg-[#78B26A]/20 border-[#78B26A]/45'
+                  : 'bg-[#181818] border-white/[0.08]'
+                }`}
+              aria-label="Toggle recording and transcription"
+            >
+              <div
+                className={`absolute mt-1 mr-1
+                  top-0.5 left-0.5
+                  w-9 h-9 sm:w-9 sm:h-9
+                  rounded-full
+                  transition-all duration-300
+                  ${isRecordEnabled
+                    ? 'translate-x-10 sm:translate-x-10 bg-[#78B26A]'
+                    : 'bg-[#666666]'
+                  }`}
+              />
+            </button>
+
+          </div>
         )}
 
-        <button
-          onClick={resetTimer}
-          className="p-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer"
-          title="Reset Timer"
-        >
-          <RotateCcw className="w-4 h-4" />
-        </button>
+        {/* Main Action Buttons */}
+        <div className="flex items-center justify-center gap-3 sm:gap-4 mt-1 sm:mt-0">
+
+          {phase === 'research' ? (
+            <>
+              <button
+                onClick={toggleTimer}
+                className="px-6 sm:px-5 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+              >
+                {isRunning ? (
+                  <Pause className="w-4 h-4" />
+                ) : (
+                  <Play className="w-4 h-4 fill-current" />
+                )}
+                {isRunning ? 'PAUSE TIMER' : 'START TIMER'}
+              </button>
+
+              <button
+                onClick={handleResearchComplete}
+                className="px-6 sm:px-8 py-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#F5F2EC] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+              >
+                Skip Research <ArrowRight className="w-4 h-4" />
+              </button>
+            </>
+          ) : (
+            <>
+              {!isSpeechActive ? (
+                <button
+                  onClick={handleStartSpeech}
+                  className="px-6 sm:px-8 py-3 rounded-full bg-[#E05D5D] text-white text-xs font-mono uppercase tracking-wider font-bold shadow-lg hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  {isRecordEnabled ? 'START SPEECH' : 'START TIMER'}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={toggleTimer}
+                    className="px-6 sm:px-8 py-3 rounded-full bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold shadow-glow-gold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    {isRunning ? (
+                      <Pause className="w-4 h-4" />
+                    ) : (
+                      <Play className="w-4 h-4 fill-current" />
+                    )}
+                    {isRunning ? 'PAUSE' : 'RESUME TIMER'}
+                  </button>
+
+                  <button
+                    onClick={() => handleDoneSpeaking()}
+                    className="px-6 sm:px-8 py-3 rounded-full bg-[#78B26A] text-[#090909] text-xs font-mono uppercase tracking-wider font-bold hover:opacity-90 cursor-pointer transition-all flex items-center gap-2"
+                  >
+                    <Square className="w-4 h-4 fill-current" />
+                    {isRecordEnabled ? 'Done Speaking' : 'Finish'}
+                  </button>
+                </>
+              )}
+            </>
+          )}
+
+          {isSpeechActive && (
+            <button
+              onClick={resetTimer}
+              className="p-3 rounded-full bg-[#181818] border border-white/[0.1] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer"
+              title="Reset Timer"
+            >
+              <RotateCcw className="w-4 h-4" />
+            </button>
+          )}
+
+        </div>
       </div>
 
       {/* Local Whisper Transcription Overlays */}
-      {isTranscribing && (
-        <div className="fixed inset-0 z-[100] bg-[#090909]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in select-none">
-          <div className="w-full max-w-md p-8 rounded-3xl bg-[#111111] border border-white/[0.08] shadow-[0_0_50px_-12px_rgba(197,138,85,0.15)] relative overflow-hidden animate-scale-up">
-            {/* Ambient gold glow */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#C58A55]/[0.08] rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
+      {
+        isTranscribing && (
+          <div className="fixed inset-0 z-[100] bg-[#090909]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in select-none">
+            <div className="w-full max-w-md p-8 rounded-3xl bg-[#111111] border border-white/[0.08] shadow-[0_0_50px_-12px_rgba(197,138,85,0.15)] relative overflow-hidden animate-scale-up">
+              {/* Ambient gold glow */}
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-[#C58A55]/[0.08] rounded-full blur-3xl pointer-events-none animate-pulse-subtle" />
 
-            <div className="relative z-10 flex flex-col items-center gap-8 py-4">
-              {/* Header */}
-              <div className="space-y-1">
-                <h3 className="font-serif text-3xl sm:text-4xl text-[#F5F2EC] tracking-tight leading-tight">
-                  {isModelLoading ? 'Preparing' : 'Transcribing'}
-                </h3>
-                <p className="font-serif text-3xl sm:text-4xl text-[#F5F2EC]/80 tracking-tight leading-tight italic">
-                  {isModelLoading ? 'transcription…' : 'your speech'}
-                </p>
-              </div>
-
-              {/* Progress Percentage Display */}
-              <div className="my-2">
-                <span className="font-serif text-6xl md:text-7xl font-normal text-[#C58A55] tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(197,138,85,0.25)]">
-                  {isModelLoading ? '...' : `${transcribePercent}%`}
-                </span>
-              </div>
-
-              {/* Premium Progress Bar */}
-              <div className="w-full px-4">
-                <div className="w-full h-[3px] bg-white/[0.06] rounded-full overflow-hidden relative">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#C58A55] to-[#D4995F] shadow-[0_0_8px_#C58A55] rounded-full transition-all duration-300 ease-out"
-                    style={{ width: isModelLoading ? '15%' : `${transcribePercent}%` }}
-                  />
+              <div className="relative z-10 flex flex-col items-center gap-8 py-4">
+                {/* Header */}
+                <div className="space-y-1">
+                  <h3 className="font-serif text-3xl sm:text-4xl text-[#F5F2EC] tracking-tight leading-tight">
+                    {isModelLoading ? 'Preparing' : 'Transcribing'}
+                  </h3>
+                  <p className="font-serif text-3xl sm:text-4xl text-[#F5F2EC]/80 tracking-tight leading-tight italic">
+                    {isModelLoading ? 'transcription…' : 'your speech'}
+                  </p>
                 </div>
-              </div>
 
-              {/* Sub-status Message */}
-              <div className="min-h-[20px]">
-                <p className="text-xs font-mono text-[#AAAAAA] uppercase tracking-widest animate-pulse">
-                  {isModelLoading
-                    ? (loadingMessage || 'Configuring local speech engine...')
-                    : (isFinishing ? 'Transcript Ready' : 'Analyzing your recording...')}
+                {/* Progress Percentage Display */}
+                <div className="my-2">
+                  <span className="font-serif text-6xl md:text-7xl font-normal text-[#C58A55] tracking-tighter tabular-nums drop-shadow-[0_0_15px_rgba(197,138,85,0.25)]">
+                    {isModelLoading ? '...' : `${transcribePercent}%`}
+                  </span>
+                </div>
+
+                {/* Premium Progress Bar */}
+                <div className="w-full px-4">
+                  <div className="w-full h-[3px] bg-white/[0.06] rounded-full overflow-hidden relative">
+                    <div
+                      className="h-full bg-gradient-to-r from-[#C58A55] to-[#D4995F] shadow-[0_0_8px_#C58A55] rounded-full transition-all duration-300 ease-out"
+                      style={{ width: isModelLoading ? '15%' : `${transcribePercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Sub-status Message */}
+                <div className="min-h-[20px]">
+                  <p className="text-xs font-mono text-[#AAAAAA] uppercase tracking-widest animate-pulse">
+                    {isModelLoading
+                      ? (loadingMessage || 'Configuring local speech engine...')
+                      : (isFinishing ? 'Transcript Ready' : 'Analyzing your recording...')}
+                  </p>
+                </div>
+
+                {/* Privacy/Offline Footer Notice */}
+                <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs mt-2">
+                  Please wait while we transcribe your speech…
                 </p>
               </div>
-
-              {/* Privacy/Offline Footer Notice */}
-              <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs mt-2">
-                Please wait while we transcribe your speech…
-              </p>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {transcriptionError && (
-        <div className="fixed inset-0 z-[100] bg-[#090909]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-          <div className="w-full max-w-md p-8 rounded-3xl bg-[#111111] border border-white/[0.08] shadow-2xl relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#E05D5D]/[0.05] rounded-full blur-3xl pointer-events-none" />
-            <div className="relative z-10 flex flex-col items-center gap-6">
-              <div className="text-4xl">⚠️</div>
-              <div className="space-y-2">
-                <h3 className="font-serif text-2xl text-[#F5F2EC]">
-                  Offline Transcription Alert
-                </h3>
-                <p className="text-xs text-[#E05D5D] font-mono uppercase tracking-wider">
-                  {transcriptionError}
+      {
+        transcriptionError && (
+          <div className="fixed inset-0 z-[100] bg-[#090909]/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fade-in">
+            <div className="w-full max-w-md p-8 rounded-3xl bg-[#111111] border border-white/[0.08] shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-[#E05D5D]/[0.05] rounded-full blur-3xl pointer-events-none" />
+              <div className="relative z-10 flex flex-col items-center gap-6">
+                <div className="text-4xl">⚠️</div>
+                <div className="space-y-2">
+                  <h3 className="font-serif text-2xl text-[#F5F2EC]">
+                    Offline Transcription Alert
+                  </h3>
+                  <p className="text-xs text-[#E05D5D] font-mono uppercase tracking-wider">
+                    {transcriptionError}
+                  </p>
+                </div>
+                <div className="flex flex-col gap-2.5 w-full">
+                  {recordedBlobRef.current && (
+                    <button
+                      onClick={handleRetryTranscription}
+                      className="w-full py-3 rounded-xl bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-widest font-bold hover:bg-[#D99C66] transition-all cursor-pointer shadow-glow-gold"
+                    >
+                      Retry Transcription
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setSessionTranscript("");
+                      setTimerView("summary");
+                      setTranscriptionError(null);
+                    }}
+                    className="w-full py-3 rounded-xl bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] text-xs font-mono uppercase tracking-wider transition-all cursor-pointer"
+                  >
+                    Skip to Summary
+                  </button>
+                </div>
+                <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs">
+                  Your audio recording remains fully available for playback and download.
                 </p>
               </div>
-              <div className="flex flex-col gap-2.5 w-full">
-                {recordedBlobRef.current && (
-                  <button
-                    onClick={handleRetryTranscription}
-                    className="w-full py-3 rounded-xl bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-widest font-bold hover:bg-[#D99C66] transition-all cursor-pointer shadow-glow-gold"
-                  >
-                    Retry Transcription
-                  </button>
-                )}
+            </div>
+          </div>
+        )
+      }
+
+      {
+        showExitConfirm && (
+          <div className="fixed inset-0 z-[110] bg-[#090909]/85 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="w-full max-w-md p-6 sm:p-8 rounded-2xl bg-[#141414] border border-white/[0.1] shadow-2xl relative space-y-6 text-center animate-fadeIn">
+              <h3 className="font-serif text-2xl text-[#F5F2EC] leading-snug">
+                Do you want to end this session here?
+              </h3>
+              <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => {
-                    setSessionTranscript("");
-                    setTimerView("summary");
-                    setTranscriptionError(null);
+                    audioEngine.playClickSound();
+                    setShowExitConfirm(false);
                   }}
-                  className="w-full py-3 rounded-xl bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] text-xs font-mono uppercase tracking-wider transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer font-mono text-xs uppercase tracking-wider transition-all animate-fadeIn"
                 >
-                  Skip to Summary
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    audioEngine.playClickSound();
+                    setShowExitConfirm(false);
+                    isProgrammaticBackRef.current = true;
+                    window.history.back();
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-[#E05D5D] text-white hover:opacity-90 cursor-pointer font-mono text-xs uppercase tracking-wider transition-all animate-fadeIn"
+                >
+                  End Session
                 </button>
               </div>
-              <p className="text-[10px] text-[#666666] leading-relaxed max-w-xs">
-                Your audio recording remains fully available for playback and download.
-              </p>
             </div>
           </div>
-        </div>
-      )}
-
-      {showExitConfirm && (
-        <div className="fixed inset-0 z-[110] bg-[#090909]/85 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="w-full max-w-md p-6 sm:p-8 rounded-2xl bg-[#141414] border border-white/[0.1] shadow-2xl relative space-y-6 text-center animate-fadeIn">
-            <h3 className="font-serif text-2xl text-[#F5F2EC] leading-snug">
-              Do you want to end this session here?
-            </h3>
-            <div className="flex gap-3 justify-center">
-              <button
-                onClick={() => {
-                  audioEngine.playClickSound();
-                  setShowExitConfirm(false);
-                }}
-                className="px-5 py-2.5 rounded-xl bg-[#181818] border border-white/[0.08] text-[#AAAAAA] hover:text-[#F5F2EC] cursor-pointer font-mono text-xs uppercase tracking-wider transition-all animate-fadeIn"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  audioEngine.playClickSound();
-                  setShowExitConfirm(false);
-                  isProgrammaticBackRef.current = true;
-                  window.history.back();
-                }}
-                className="px-5 py-2.5 rounded-xl bg-[#E05D5D] text-white hover:opacity-90 cursor-pointer font-mono text-xs uppercase tracking-wider transition-all animate-fadeIn"
-              >
-                End Session
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
