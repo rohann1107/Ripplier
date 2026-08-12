@@ -94,8 +94,10 @@ export const App: React.FC = () => {
     audioEngine.setVolume(settings.volume);
   }, [settings.soundEnabled, settings.volume]);
 
-  // Preload Whisper model silently in the background
+  // Preload Whisper model silently in the background once the user starts their practice session
   useEffect(() => {
+    if (currentView !== 'timer') return;
+
     const preloadModel = () => {
       console.log('Preloading local Whisper model in background...');
       transcriptionService.initialize().catch((err) => {
@@ -104,13 +106,17 @@ export const App: React.FC = () => {
     };
 
     if (typeof window !== 'undefined') {
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(() => preloadModel(), { timeout: 10000 });
-      } else {
-        setTimeout(preloadModel, 2000);
-      }
+      const timer = setTimeout(() => {
+        if ('requestIdleCallback' in window) {
+          window.requestIdleCallback(() => preloadModel(), { timeout: 10000 });
+        } else {
+          preloadModel();
+        }
+      }, 15000); // 15 seconds delay to allow transition, initial timer start/clicks, and stabilization
+
+      return () => clearTimeout(timer);
     }
-  }, []);
+  }, [currentView]);
 
   const filteredTopics = useMemo(() => {
     return TOPICS.filter((t) => {
