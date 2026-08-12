@@ -1094,26 +1094,37 @@ Here is my speech transcript:
           ))}
       </div>
 
-      {/* Speech Phase: Waveform */}
+      {/* Speech Phase: Waveform or Text Prompt */}
       {phase === 'speech' && isSpeechActive && (
         <div className="w-full max-w-xl flex flex-col items-center gap-2.5">
-          <canvas ref={canvasRef} width={500} height={40} className="w-full h-15 bg-[#111111] rounded-xl border border-white/[0.05]" />
+          {isRecordEnabled ? (
+            <>
+              <canvas ref={canvasRef} width={500} height={40} className="w-full h-15 bg-[#111111] rounded-xl border border-white/[0.05]" />
 
-          {mediaRecording.isRecording && !mediaRecording.isPaused && (
-            <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
-              <div className="w-2 h-2 rounded-full bg-[#E05D5D] animate-pulse" />
-              Recording...
-              <div className="flex items-center gap-2 text-xs font-mono text-white">
-                <div className="w-2 h-2 rounded-full bg-[#7CC8F3] animate-pulse" />
-                Live Transcripting... </div>
-
-            </div>
-
-          )}
-          {mediaRecording.isPaused && (
-            <div className="flex items-center gap-2 text-xs font-mono text-[#E0A85D]">
-              <div className="w-2 h-2 rounded-full bg-[#E0A85D]" />
-              Paused
+              {mediaRecording.isRecording && !mediaRecording.isPaused && (
+                <div className="flex items-center gap-2 text-xs font-mono text-[#E05D5D]">
+                  <div className="w-2 h-2 rounded-full bg-[#E05D5D] animate-pulse" />
+                  Recording...
+                  <div className="flex items-center gap-2 text-xs font-mono text-white">
+                    <div className="w-2 h-2 rounded-full bg-[#7CC8F3] animate-pulse" />
+                    Live Transcripting... </div>
+                </div>
+              )}
+              {mediaRecording.isPaused && (
+                <div className="flex items-center gap-2 text-xs font-mono text-[#E0A85D]">
+                  <div className="w-2 h-2 rounded-full bg-[#E0A85D]" />
+                  Paused
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center py-4 px-6 rounded-2xl bg-[#111111] border border-white/[0.05] w-full animate-fadeIn flex flex-col gap-1 items-center justify-center">
+              <span className="text-sm font-mono text-[#7CC8F3] uppercase tracking-wider font-semibold">
+                Start your speech now
+              </span>
+              <span className="text-[10px] font-mono text-[#AAAAAA] uppercase tracking-widest">
+                Focus on your pacing and presentation
+              </span>
             </div>
           )}
         </div>
