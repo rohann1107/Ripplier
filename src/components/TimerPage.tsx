@@ -255,6 +255,10 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       totalPausedMsRef.current = 0;
       pauseStartedRef.current = null;
 
+      if (isRecordEnabled) {
+        await mediaRecording.start();
+      }
+
       const now = Date.now();
 
       setSpeechStartTime(now);
@@ -263,15 +267,25 @@ export const TimerPage: React.FC<TimerPageProps> = ({
       endTimeRef.current = now + speechSecs * 1000;
       timerStartedRef.current = true;
 
-      if (isRecordEnabled) {
-        await mediaRecording.start();
-      }
-
       setTimeLeft(speechSecs);
       setIsRunning(true);
 
     } catch (err) {
       console.error(err);
+
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const status = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+          if (status.state === 'denied') {
+            setTranscriptionError("Microphone is blocked in your browser settings. Please click the settings icon (lock icon) next to the URL in the address bar and set Microphone to 'Allow' or 'Ask', then click retry.");
+            return;
+          }
+        }
+      } catch (e) {
+        console.warn("Permissions API check failed:", e);
+      }
+
+      setTranscriptionError("Microphone access was denied. Please allow microphone permissions to record.");
     }
 
   }, [speechSecs, mediaRecording, isRecordEnabled]);
@@ -581,17 +595,7 @@ export const TimerPage: React.FC<TimerPageProps> = ({
     endTimeRef.current = 0;
     pausedRemainingRef.current = 0;
 
-    const duration = speechStartTime
-      ? Math.max(
-        1,
-        Math.round(
-          (Date.now() -
-            speechStartTime -
-            totalPausedMsRef.current) /
-          1000
-        )
-      )
-      : speechSecs - timeLeft;
+    const duration = Math.max(1, speechSecs - timeLeft);
 
     console.log(`[Audio] Recording timer duration: ${duration} seconds`);
     if (!options?.skipSummary) {
@@ -1351,6 +1355,30 @@ Here is my speech transcript:
                       className="w-full py-3 rounded-xl bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-widest font-bold hover:bg-[#D99C66] transition-all cursor-pointer shadow-glow-gold"
                     >
                       Retry Transcription
+                    </button>
+                  )}
+                  {!recordedBlobRef.current && (
+                    <button
+                      onClick={() => {
+                        audioEngine.playClickSound();
+                        setTranscriptionError(null);
+                        continueSpeechAnyway();
+                      }}
+                      className="w-full py-3 rounded-xl bg-[#C58A55] text-[#090909] text-xs font-mono uppercase tracking-widest font-bold hover:bg-[#D99C66] transition-all cursor-pointer shadow-glow-gold"
+                    >
+                      Retry Microphone Access
+                    </button>
+                  )}
+                  {!recordedBlobRef.current && (
+                    <button
+                      onClick={() => {
+                        audioEngine.playClickSound();
+                        setIsRecordEnabled(false);
+                        setTranscriptionError(null);
+                      }}
+                      className="w-full py-3 rounded-xl bg-[#181818] border border-[#7CC8F3]/30 text-[#7CC8F3] hover:text-[#F5F2EC] hover:bg-[#7CC8F3]/10 text-xs font-mono uppercase tracking-wider transition-all cursor-pointer"
+                    >
+                      Practice with Timer Only
                     </button>
                   )}
                   <button

@@ -130,6 +130,7 @@ export function useMediaRecording(): MediaRecordingHook {
       }, 1000);
     } catch (e) {
       console.error('Microphone access error:', e);
+      throw e;
     }
   }, []);
 
